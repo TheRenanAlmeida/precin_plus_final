@@ -20,19 +20,19 @@ const UserDistributorsSection: React.FC<UserDistributorsSectionProps> = ({
     userDistributorsForBase, distributorColors, lastPrices, availableBases, selectedBase, setSelectedBase, handleSelectDistributorToQuote
 }) => (
     <>
-        <div className="flex flex-col mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+        <div className="flex flex-col mb-4 border-b border-slate-800 pb-3">
+            <h2 className="text-xl font-bold text-slate-100 leading-tight">
                 Minhas Distribuidoras
             </h2>
             <div className="flex flex-wrap items-center justify-between mt-2 gap-4">
-                <p className="text-gray-600 text-sm">
+                <p className="text-slate-400 text-sm">
                 Selecione para inserir os preços de hoje.
                 </p>
                 {availableBases.length > 0 && (
                 <div className="flex items-center gap-3 mt-1 sm:mt-0">
                     <label
                     htmlFor="base-selector"
-                    className="text-sm font-medium text-gray-700 whitespace-nowrap"
+                    className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap"
                     >
                     Base:
                     </label>
@@ -40,11 +40,11 @@ const UserDistributorsSection: React.FC<UserDistributorsSectionProps> = ({
                     id="base-selector"
                     value={selectedBase}
                     onChange={(e) => setSelectedBase(e.target.value)}
-                    className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg
-                                        focus:ring-green-500 focus:border-green-500 px-2.5 py-1.5 shadow-sm"
+                    className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg
+                                        focus:ring-emerald-500 focus:border-emerald-500 px-2.5 py-1.5 shadow-sm"
                     >
                     {availableBases.map(base => (
-                        <option key={base} value={base}>
+                        <option key={base} value={base} className="bg-slate-900">
                         {base}
                         </option>
                     ))}
@@ -53,7 +53,7 @@ const UserDistributorsSection: React.FC<UserDistributorsSectionProps> = ({
                 )}
             </div>
         </div>
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
             {userDistributorsForBase.map((dist) => {
                 const style = distributorColors[dist.bandeira];
                 if (!style) return null; // Don't render card until color is loaded

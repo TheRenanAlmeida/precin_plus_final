@@ -21,63 +21,6 @@ interface DistributorData {
     imagem: string | null;
 }
 
-type BaseRecord = { Base: string | null };
-
-const MenuSkeleton: React.FC = () => (
-    <div className="min-h-screen bg-slate-50">
-        <Header />
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-10 animate-pulse">
-                <div className="h-10 bg-slate-200 rounded w-1/2 mx-auto mb-2"></div>
-                <div className="h-6 bg-slate-200 rounded w-3/4 mx-auto"></div>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                {/* NavigationSidebar Skeleton */}
-                <aside className="lg:col-span-3 space-y-8">
-                    <div className="p-6 bg-white rounded-xl shadow-lg border border-gray-200 space-y-4 animate-pulse">
-                        <div className="h-8 bg-slate-200 rounded w-3/4"></div>
-                        <div className="h-12 bg-slate-200 rounded-lg"></div>
-                        <div className="h-12 bg-slate-200 rounded-lg"></div>
-                    </div>
-                </aside>
-
-                {/* Main Content Skeleton */}
-                <main className="lg:col-span-9">
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 animate-pulse">
-                        {/* UserDistributorsSection Skeleton */}
-                        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <div className="h-8 bg-slate-200 rounded w-1/2"></div>
-                                <div className="h-8 bg-slate-200 rounded w-1/4"></div>
-                            </div>
-                            <div className="h-6 bg-slate-200 rounded w-3/4"></div>
-                            <div className="space-y-3 pt-3">
-                                <div className="h-24 bg-slate-100 rounded-xl"></div>
-                                <div className="h-24 bg-slate-100 rounded-xl"></div>
-                                <div className="h-24 bg-slate-100 rounded-xl"></div>
-                            </div>
-                        </div>
-
-                        {/* MarketDistributorsSection Skeleton */}
-                        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 space-y-4">
-                            <div className="h-8 bg-slate-200 rounded w-1/2"></div>
-                            <div className="h-6 bg-slate-200 rounded w-3/4"></div>
-                            <div className="flex flex-wrap gap-3 pt-3">
-                                <div className="h-8 bg-slate-200 rounded-full w-24"></div>
-                                <div className="h-8 bg-slate-200 rounded-full w-32"></div>
-                                <div className="h-8 bg-slate-200 rounded-full w-28"></div>
-                                <div className="h-8 bg-slate-200 rounded-full w-20"></div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-            </div>
-        </div>
-    </div>
-);
-
-
 const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDashboard: () => void; goToHistory: () => void; goToAdmin: () => void; userProfile: UserProfile | null; }) => {
     
     const [selectedDistributorToQuote, setSelectedDistributorToQuote] = useState<BandeiraBasePair | null>(null);
@@ -103,62 +46,70 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
             if (!userProfile) return;
             setLoading(true);
 
-            let bases: string[] = [];
-            if (userProfile.credencial === 'administrador') {
-                const { data, error } = await supabase
-                    .from('Precin - Bases')
-                    .select('"Nome da Base"')
-                    .abortSignal(controller.signal)
-                    .returns<{ "Nome da Base": string }[]>();
+            try {
+                let bases: string[] = [];
+                if (userProfile.credencial === 'administrador') {
+                    const { data, error } = await supabase
+                        .from('Precin - Bases')
+                        .select('"Nome da Base"')
+                        .abortSignal(controller.signal)
+                        .returns<{ "Nome da Base": string }[]>();
+
+                    if (controller.signal.aborted) return;
+                    
+                    if (error) {
+                        console.error("Error fetching admin bases:", error.message || error);
+                        const errorMessage = (error as any).message || JSON.stringify(error);
+                        showNotification('error', `Erro ao buscar bases de admin: ${errorMessage}`);
+                    } else if (data) {
+                        bases = [...new Set((data as { "Nome da Base": string }[])
+                            .map(item => item["Nome da Base"])
+                            .filter((base): base is string => typeof base === 'string' && base.length > 0))
+                        ].sort();
+                    }
+                } else if (userProfile.preferencias?.length) {
+                    bases = [...new Set(userProfile.preferencias.map(p => p.base))].sort();
+                }
+                setAvailableBases(bases);
+                
+                if (bases.length > 0 && (!selectedBase || !bases.includes(selectedBase))) {
+                    setSelectedBase(bases[0]);
+                }
+
+                const distributorsPromise = supabase.from('Distribuidoras').select('Name, Bases, imagem').abortSignal(controller.signal);
+                const stylesPromise = supabase.from('pplus_distributor_styles').select('name, bg_color, text_color, shadow_style').abortSignal(controller.signal);
+
+                const [distributorsResult, stylesResult] = await Promise.all([distributorsPromise, stylesPromise]);
 
                 if (controller.signal.aborted) return;
+
+                const { data, error } = distributorsResult;
+                const { data: stylesData, error: stylesError } = stylesResult;
                 
-                if (error) {
-                    console.error("Error fetching admin bases:", error);
-                    const errorMessage = (error as any).message || JSON.stringify(error);
-                    showNotification('error', `Erro ao buscar bases de admin: ${errorMessage}`);
-                } else if (data) {
-                    // FIX: Explicitly cast `data` to the expected type to resolve the "unknown[] is not assignable to string[]" error.
-                    bases = [...new Set((data as { "Nome da Base": string }[])
-                        .map(item => item["Nome da Base"])
-                        .filter((base): base is string => typeof base === 'string' && base.length > 0))
-                    ].sort();
+                if (stylesError) {
+                    console.error("Error fetching styles:", stylesError.message || stylesError);
+                } else if (stylesData) {
+                    const stylesMap = new Map<string, DistributorDBStyle>();
+                    (stylesData as DistributorDBStyle[]).forEach(style => stylesMap.set(style.name, style));
+                    setDbStyles(stylesMap);
                 }
-            } else if (userProfile.preferencias?.length) {
-                bases = [...new Set(userProfile.preferencias.map(p => p.base))].sort();
+
+                if (error) {
+                    console.error("Error fetching distributors:", error.message || error);
+                    showNotification('error', 'Falha ao carregar lista de distribuidoras.');
+                } else if (data) {
+                    setAllDistributors(data.map(d => ({ name: d.Name, bases: d.Bases || '', imagem: d.imagem || null })));
+                }
+            } catch (err: any) {
+                if (err.name !== 'AbortError' && !err.message?.includes('Aborted')) {
+                    console.error("Unexpected error in fetchInitialData:", err);
+                    showNotification('error', 'Ocorreu um erro inesperado ao carregar dados iniciais.');
+                }
+            } finally {
+                if (!controller.signal.aborted) {
+                    setLoading(false);
+                }
             }
-            setAvailableBases(bases);
-            
-            if (bases.length > 0 && (!selectedBase || !bases.includes(selectedBase))) {
-                setSelectedBase(bases[0]);
-            }
-
-            const distributorsPromise = supabase.from('Distribuidoras').select('Name, Bases, imagem').abortSignal(controller.signal);
-            const stylesPromise = supabase.from('pplus_distributor_styles').select('name, bg_color, text_color, shadow_style').abortSignal(controller.signal);
-
-            const [distributorsResult, stylesResult] = await Promise.all([distributorsPromise, stylesPromise]);
-
-            if (controller.signal.aborted) return;
-
-            const { data, error } = distributorsResult;
-            const { data: stylesData, error: stylesError } = stylesResult;
-            
-            if (stylesError) {
-                console.error("Error fetching styles:", stylesError.message);
-            } else if (stylesData) {
-                const stylesMap = new Map<string, DistributorDBStyle>();
-                (stylesData as DistributorDBStyle[]).forEach(style => stylesMap.set(style.name, style));
-                setDbStyles(stylesMap);
-            }
-
-            if (error) {
-                console.error("Error fetching distributors:", error);
-                showNotification('error', 'Falha ao carregar lista de distribuidoras.');
-            } else if (data) {
-                setAllDistributors(data.map(d => ({ name: d.Name, bases: d.Bases || '', imagem: d.imagem || null })));
-            }
-            
-            setLoading(false);
         };
 
         fetchInitialData();
@@ -170,36 +121,42 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
         const fetchLastPrices = async () => {
             if (!userProfile || !selectedBase) return;
     
-            const { data, error } = await supabase
-                .from('pplus_user_daily_prices')
-                .select('brand_name, product_name, price, price_date')
-                .eq('user_id', userProfile.id)
-                .eq('base_name', selectedBase)
-                .order('price_date', { ascending: false })
-                .abortSignal(controller.signal);
+            try {
+                const { data, error } = await supabase
+                    .from('pplus_user_daily_prices')
+                    .select('brand_name, product_name, price, price_date')
+                    .eq('user_id', userProfile.id)
+                    .eq('base_name', selectedBase)
+                    .order('price_date', { ascending: false })
+                    .abortSignal(controller.signal);
 
-            if (controller.signal.aborted) return;
-    
-            if (error) {
-                console.error("Error fetching last prices:", error);
-                return;
-            }
-    
-            if (data) {
-                const latestPricesByBrandAndProduct = data.reduce((acc, priceRecord) => {
-                    const { brand_name, product_name, price, price_date } = priceRecord;
-                    if (!acc[brand_name]) {
-                        acc[brand_name] = {};
-                    }
-                    if (!acc[brand_name][product_name]) {
-                        acc[brand_name][product_name] = {
-                            price: price,
-                            date: price_date
-                        };
-                    }
-                    return acc;
-                }, {} as { [brand: string]: { [product: string]: { price: number; date: string } } });
-                setLastPrices(latestPricesByBrandAndProduct);
+                if (controller.signal.aborted) return;
+        
+                if (error) {
+                    console.error("Error fetching last prices:", error.message || error);
+                    return;
+                }
+        
+                if (data) {
+                    const latestPricesByBrandAndProduct = data.reduce((acc, priceRecord) => {
+                        const { brand_name, product_name, price, price_date } = priceRecord;
+                        if (!acc[brand_name]) {
+                            acc[brand_name] = {};
+                        }
+                        if (!acc[brand_name][product_name]) {
+                            acc[brand_name][product_name] = {
+                                price: price,
+                                date: price_date
+                            };
+                        }
+                        return acc;
+                    }, {} as { [brand: string]: { [product: string]: { price: number; date: string } } });
+                    setLastPrices(latestPricesByBrandAndProduct);
+                }
+            } catch (err: any) {
+                if (err.name !== 'AbortError' && !err.message?.includes('Aborted')) {
+                    console.error("Unexpected error in fetchLastPrices:", err);
+                }
             }
         };
     
@@ -251,8 +208,8 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
     const isMarketDistributorSelected = useMemo(() => {
         if (!selectedDistributorToQuote) return false;
         const isUserDist = userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira && d.base === selectedDistributorToQuote.base);
-        return marketDistributorsForBase.some(d => d.name === selectedDistributorToQuote.bandeira) && !isUserDist;
-    }, [selectedDistributorToQuote, marketDistributorsForBase, userDistributorsForBase]);
+        return !isUserDist; // Se não é uma das minhas, é do mercado
+    }, [selectedDistributorToQuote, userDistributorsForBase]);
 
     useEffect(() => {
         if (loading) return;
@@ -357,6 +314,12 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
     };
 
     const handleSelectDistributorToQuote = (dist: BandeiraBasePair) => {
+        // Se o mesmo for clicado, deseleciona.
+        if (selectedDistributorToQuote?.bandeira === dist.bandeira && selectedDistributorToQuote?.base === dist.base) {
+            setSelectedDistributorToQuote(null);
+            return;
+        }
+
         const key = `${dist.bandeira}|${dist.base}`;
         const lastSavedPrices = lastPrices[dist.bandeira];
 
@@ -380,52 +343,55 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
     };
     
     const handleSelectMarketDistributor = (distName: string) => {
-        setSelectedDistributorToQuote({ bandeira: distName, base: selectedBase });
+        const newSelection = { bandeira: distName, base: selectedBase };
+        // Se a mesma distribuidora for clicada novamente, desmarque-a.
+        if (selectedDistributorToQuote?.bandeira === distName && selectedDistributorToQuote?.base === selectedBase) {
+            setSelectedDistributorToQuote(null);
+        } else {
+            setSelectedDistributorToQuote(newSelection);
+        }
     };
 
     const styleForSelected = selectedDistributorToQuote ? getDistributorStyle(selectedDistributorToQuote.bandeira, dbStyles) : null;
     const selectedDistributorKey = selectedDistributorToQuote ? `${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}` : '';
 
     if (loading) {
-        return <MenuSkeleton />;
+        return <LoadingScreen />;
     }
     
-    const renderFormContainer = (distributor: BandeiraBasePair, style: DistributorStyle) => (
-        <div className="flex">
-            <div className="w-1.5 flex-shrink-0" style={{ background: style.background }}></div>
-            <div className="flex-grow">
-                <div className="p-4" style={{ backgroundColor: style.background }}>
-                    <h2 className="text-xl font-bold" style={{ color: style.border }}>
-                        Cotação: {distributor.bandeira}
-                    </h2>
-                    <p className="text-sm opacity-90" style={{ color: style.border }}>
-                        Insira as cotações para a Base {distributor.base}.
-                    </p>
-                </div>
-                <div className="p-6">
-                    <QuoteInputForm 
-                        distributor={distributor} 
-                        initialPrices={pendingQuotes[selectedDistributorKey] || {}}
-                        onPriceChange={(product, value) => handlePendingPriceChange(selectedDistributorKey, product, value)}
-                        onSubmit={handleQuoteSubmit} 
-                        onCancel={() => setSelectedDistributorToQuote(null)} 
-                    />
-                </div>
+    const renderFormContainer = (distributor: BandeiraBasePair) => (
+        <div className="rounded-lg overflow-hidden border border-slate-700 mt-4">
+             <div className="p-4 bg-slate-800">
+                <h2 className="text-lg font-bold text-slate-100">
+                    Cotação: {distributor.bandeira}
+                </h2>
+                <p className="text-sm text-slate-400">
+                    Insira as cotações para a Base {distributor.base}.
+                </p>
+            </div>
+            <div className="p-6 bg-slate-900/50">
+                <QuoteInputForm 
+                    distributor={distributor} 
+                    initialPrices={pendingQuotes[selectedDistributorKey] || {}}
+                    onPriceChange={(product, value) => handlePendingPriceChange(selectedDistributorKey, product, value)}
+                    onSubmit={handleQuoteSubmit} 
+                    onCancel={() => setSelectedDistributorToQuote(null)} 
+                />
             </div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <Header userProfile={userProfile} />
-            <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-slate-950 text-slate-200">
+            <Header userProfile={userProfile} className="bg-slate-950 border-b border-slate-800" />
+            <div className="max-w-[1600px] mx-auto py-8 px-4 sm:px-6 lg:px-8">
                 
-                <div className="text-center mb-10">
-                    <h1 className="text-4xl font-extrabold text-gray-900">Portal de Cotações</h1>
-                    <p className="mt-2 text-lg text-gray-600">Insira seus preços e acesse a inteligência de mercado.</p>
+                <div className="text-center mb-8">
+                    <h1 className="text-4xl font-extrabold text-slate-100 tracking-tight">Portal de Cotações</h1>
+                    <p className="mt-2 text-lg text-slate-400">Insira seus preços e acesse a inteligência de mercado.</p>
                 </div>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     
                     <NavigationSidebar 
                         goToDashboard={goToDashboard} 
@@ -435,9 +401,9 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                     />
 
                     <main className="lg:col-span-9">
-                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                             
-                            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 h-fit overflow-hidden">
+                            <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 h-fit overflow-hidden">
                                 <div className={`transition-all duration-500 ease-in-out ${isMyDistributorSelected ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible p-6'}`}>
                                     <UserDistributorsSection
                                         userDistributorsForBase={userDistributorsForBase}
@@ -450,22 +416,23 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                                     />
                                 </div>
                                 <div className={`transition-all duration-500 ease-in-out ${isMyDistributorSelected ? 'max-h-[1000px] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
-                                    {isMyDistributorSelected && selectedDistributorToQuote && styleForSelected && renderFormContainer(selectedDistributorToQuote, styleForSelected)}
+                                    {isMyDistributorSelected && selectedDistributorToQuote && renderFormContainer(selectedDistributorToQuote)}
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl shadow-lg border border-gray-200 h-fit overflow-hidden">
-                               <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible p-6'}`}>
-                                    <MarketDistributorsSection
+                            <div className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 h-fit overflow-hidden">
+                                <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible p-6'}`}>
+                                   <MarketDistributorsSection
                                         marketDistributorsForBase={marketDistributorsForBase}
                                         distributorColors={distributorColors}
                                         selectedBase={selectedBase}
                                         handleSelectMarketDistributor={handleSelectMarketDistributor}
+                                        selectedDistributorName={isMarketDistributorSelected ? selectedDistributorToQuote?.bandeira || null : null}
                                     />
-                               </div>
-                               <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-[1000px] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
-                                    {isMarketDistributorSelected && selectedDistributorToQuote && styleForSelected && renderFormContainer(selectedDistributorToQuote, styleForSelected)}
-                               </div>
+                                </div>
+                                <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-[1000px] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
+                                     {isMarketDistributorSelected && selectedDistributorToQuote && renderFormContainer(selectedDistributorToQuote)}
+                                </div>
                             </div>
                         </div>
                     </main>

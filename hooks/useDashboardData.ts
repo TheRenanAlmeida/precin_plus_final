@@ -1,3 +1,4 @@
+
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     UserProfile,
@@ -23,14 +24,36 @@ import {
     calculateIQRAverage,
     findMinPriceInfo,
     calculateProductAveragesFromRecords,
-    calculateCustomMaxPrice,
 } from '../utils/dataHelpers';
 import { getDistributorStyle, defaultDistributorStyle, getOriginalBrandName } from '../utils/styleManager';
+
+/**
+ * Extrai uma mensagem de erro legível de qualquer tipo de exceção.
+ * @param error O erro capturado.
+ * @returns Uma string com a mensagem de erro.
+ */
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (error && typeof error === 'object' && 'message' in error) {
+        return String((error as { message: unknown }).message);
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return 'Ocorreu um erro desconhecido e não foi possível exibi-lo.';
+    }
+};
 
 // Local types from DashboardPage
 type ChartDataset = {
     label: string;
     data: (number | null)[];
+    hidden?: boolean; // Adicionado para controle de visibilidade
     [key: string]: any;
 };
 type ChartData = {
@@ -114,8 +137,9 @@ export const useDashboardData = (
 
                 if (stylesError) console.error("Falha ao carregar estilos do banco de dados:", stylesError.message);
                 if (distributorsError) setError(`Falha ao carregar logos: ${distributorsError.message}`);
+                
                 if (pricesError) {
-                throw new Error(`Ocorreu um erro ao buscar os dados: ${pricesError.message}.`);
+                    throw pricesError;
                 }
 
                 if (distributorsData) {
@@ -146,11 +170,12 @@ export const useDashboardData = (
                 });
 
                 const customSort = (a: string, b: string) => {
-                const indexA = FUEL_PRODUCTS.indexOf(a as FuelProduct);
-                const indexB = FUEL_PRODUCTS.indexOf(b as FuelProduct);
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                if (indexA !== -1) return -1; if (indexB !== -1) return 1;
-                return a.localeCompare(b);
+                    const fuelProducts: readonly string[] = FUEL_PRODUCTS;
+                    const indexA = fuelProducts.indexOf(a);
+                    const indexB = fuelProducts.indexOf(b);
+                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                    if (indexA !== -1) return -1; if (indexB !== -1) return 1;
+                    return a.localeCompare(b);
                 };
                 
                 const newDistributors = Array.from(distributorSet).sort((a,b) => a.localeCompare(b));
@@ -162,7 +187,7 @@ export const useDashboardData = (
                     stylesData.forEach(style => dbStylesMap.set(style.name, style));
                 }
                 
-                const fetchedColors = allNamesToColor.reduce((acc: DistributorColors, name: string) => {
+                const fetchedColors = allNamesToColor.reduce<DistributorColors>((acc, name) => {
                     acc[name] = getDistributorStyle(name, dbStylesMap);
                     return acc;
                 }, { DEFAULT: { ...defaultDistributorStyle } });
@@ -173,8 +198,16 @@ export const useDashboardData = (
                 setSelectedDistributors(new Set(newDistributors));
             
             } catch (err: any) {
-                if (err.name !== 'AbortError' && !signal.aborted) {
-                    setError(err.message || "Um erro inesperado ocorreu.");
+                // Verificação robusta para AbortError
+                if (
+                    (err instanceof Error && (err.name === 'AbortError' || err.message.includes('Aborted') || err.message.includes('aborted'))) || 
+                    (err && typeof err === 'object' && err.message && (err.message.includes('AbortError') || err.message.includes('aborted')))
+                ) {
+                    return; // Ignore abort errors, they are expected
+                }
+                if (!signal.aborted) {
+                    const message = getErrorMessage(err);
+                    setError(`Falha ao carregar os dados: ${message}`);
                 }
             } finally {
                 if (!signal.aborted) {
@@ -242,9 +275,20 @@ export const useDashboardData = (
             return unfilteredAveragePrices;
         }
         return marketData.reduce((acc, { produto, prices }) => {
-            const priceList = Array.from(selectedDistributors)
-                .flatMap(d => prices[d] || [])
-                .filter(p => p !== undefined && p !== null) as number[];
+            const distList = Array.from(selectedDistributors) as string[];
+            const priceList: number[] = [];
+            
+            for (const d of distList) {
+                const pList = prices[d];
+                if (pList) {
+                    for (const p of pList) {
+                        if (typeof p === 'number' && isFinite(p)) {
+                            priceList.push(p);
+                        }
+                    }
+                }
+            }
+            
             acc[produto] = calculateIQRAverage(priceList);
             return acc;
         }, {} as {[product: string]: number});
@@ -253,7 +297,7 @@ export const useDashboardData = (
     const chartAndSeriesData = useMemo(() => {
         const dataByFuelTypeAndDate: Record<string, Record<string, ProductPrices>> = {};
 
-        rawChartData.forEach((record) => {
+        rawChartData.forEach((record: FuelPriceRecord) => {
             const { fuel_type, data, Distribuidora, price } = record;
             if (price && price > 0 && typeof fuel_type === 'string' && typeof data === 'string' && typeof Distribuidora === 'string') {
                 if (!dataByFuelTypeAndDate[fuel_type]) dataByFuelTypeAndDate[fuel_type] = {};
@@ -266,7 +310,7 @@ export const useDashboardData = (
         });
 
         const userPricesByFuelAndDate: UserPricesByFuelAndDate = {};
-        userHistoryChartData.forEach((record) => {
+        userHistoryChartData.forEach((record: UserHistoryChartRecord) => {
             const { product_name, price_date, brand_name, price } = record;
             if (typeof product_name === 'string' && typeof price_date === 'string' && typeof brand_name === 'string') {
                 if (!userPricesByFuelAndDate[product_name]) userPricesByFuelAndDate[product_name] = {};
@@ -280,23 +324,45 @@ export const useDashboardData = (
         const finalChartData: FinalChartData = {};
         const allFuelTypesInWindow = Object.keys(dataByFuelTypeAndDate);
 
-        if (allFuelTypesInWindow.length === 0) return { chartData: {}, seriesConfig: [] };
+        if (allFuelTypesInWindow.length === 0) return { chartData: {} as FinalChartData, seriesConfig: [] };
 
-        // FIX: Corrigido para remover filtro redundante e garantir que `sort` opere em string[], evitando erros de tipo.
-        // FIX: Add a type guard to ensure the array passed to Set contains only strings, resolving the "unknown[] is not assignable to string[]" error.
-        const labels: string[] = [...new Set(rawChartData.map((d) => d.data).filter((d): d is string => typeof d === 'string'))].sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
+        const labels: string[] = Array.from(new Set<string>(
+            rawChartData
+                .map((d) => d.data)
+                .filter((d): d is string => typeof d === 'string')
+        )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-        if (labels.length === 0) return { chartData: {}, seriesConfig: [] };
+        if (labels.length === 0) return { chartData: {} as FinalChartData, seriesConfig: [] };
 
         for (const fuelType of allFuelTypesInWindow) {
             const dailyStats = labels.map(dateStr => {
                 const pricesByDistributor = dataByFuelTypeAndDate[fuelType]?.[dateStr] || {};
-                const allPricesFlat = Object.values(pricesByDistributor).flat().filter((p): p is number => typeof p === 'number' && isFinite(p));
+                const activeDistributors = Object.keys(pricesByDistributor).filter(d => pricesByDistributor[d] && pricesByDistributor[d].length > 0);
 
-                if (allPricesFlat.length === 0) return { min: null, avg: null, max: null };
-                const min = Math.min(...allPricesFlat);
-                const max = calculateCustomMaxPrice(pricesByDistributor);
-                const avg = calculateIQRAverage(allPricesFlat);
+                if (activeDistributors.length === 0) return { min: null, avg: null, max: null };
+
+                let valuesForStats: number[] = [];
+
+                if (activeDistributors.length === 1) {
+                    // Cenário 1: Apenas 1 bandeira selecionada.
+                    // Mostra a variação INTERNA (amplitude) daquela bandeira.
+                    valuesForStats = pricesByDistributor[activeDistributors[0]];
+                } else {
+                    // Cenário 2: Múltiplas bandeiras.
+                    // Competitividade: Pega o MELHOR preço (Mínimo) de cada concorrente.
+                    // Isso gera uma faixa de mercado dos "Melhores Preços".
+                    valuesForStats = activeDistributors.map(d => Math.min(...pricesByDistributor[d]));
+                }
+
+                // Garante que são números válidos
+                const validValues = valuesForStats.filter((p): p is number => typeof p === 'number' && isFinite(p));
+
+                if (validValues.length === 0) return { min: null, avg: null, max: null };
+                
+                const min = Math.min(...validValues);
+                const avg = calculateIQRAverage(validValues);
+                const max = Math.max(...validValues);
+
                 return { min, avg: avg > 0 ? avg : null, max };
             });
 
@@ -309,6 +375,7 @@ export const useDashboardData = (
                     tension: 0.2,
                     borderWidth: 2,
                     spanGaps: true,
+                    seriesType: 'market',
                 },
                 {
                     label: 'Preço Médio (IQR)',
@@ -318,6 +385,7 @@ export const useDashboardData = (
                     tension: 0.2,
                     borderWidth: 2,
                     spanGaps: true,
+                    seriesType: 'market',
                 },
                 {
                     label: 'Preço Máximo',
@@ -327,6 +395,7 @@ export const useDashboardData = (
                     tension: 0.2,
                     borderWidth: 2,
                     spanGaps: true,
+                    seriesType: 'market',
                 },
             ];
 
@@ -342,22 +411,24 @@ export const useDashboardData = (
                     borderWidth: 2.5,
                     borderDash: [5, 5],
                     spanGaps: true,
+                    seriesType: 'distributor',
                 });
             });
 
             finalChartData[fuelType] = { labels, datasets };
         }
         
-        const productOrder = FUEL_PRODUCTS;
+        const productOrder = FUEL_PRODUCTS as readonly string[];
         const sortedKeys = Object.keys(finalChartData).sort((a, b) => {
-            const indexA = productOrder.indexOf(a as FuelProduct), indexB = productOrder.indexOf(b as FuelProduct);
+            const indexA = productOrder.indexOf(a);
+            const indexB = productOrder.indexOf(b);
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
             if (indexA !== -1) return -1; if (indexB !== -1) return 1;
             return a.localeCompare(b);
         });
         
         const sortedFinalChartData: FinalChartData = {};
-        sortedKeys.forEach(key => {
+        sortedKeys.forEach((key) => {
             sortedFinalChartData[key] = finalChartData[key];
         });
 
@@ -381,19 +452,53 @@ export const useDashboardData = (
         return { chartData: sortedFinalChartData, seriesConfig: newSeriesConfig };
     }, [rawChartData, userHistoryChartData, userBandeiras, distributorColors]);
 
+    // --- Atualiza configuração de séries (Gráfico) com persistência ---
     useEffect(() => {
         setDashboardSeriesConfig(prevConfig => {
-            const newConfig = chartAndSeriesData.seriesConfig;
+            const newConfig = chartAndSeriesData.seriesConfig as ChartSeries[];
             if (!newConfig || newConfig.length === 0) {
                 return prevConfig.filter(s => s.type === 'market');
             }
+            
             const prevVisibilityMap = new Map(prevConfig.map(s => [s.key, s.isVisible]));
-            return newConfig.map(newSeries => ({
-                ...newSeries,
-                isVisible: prevVisibilityMap.has(newSeries.key) ? prevVisibilityMap.get(newSeries.key)! : newSeries.isVisible,
-            }));
+            
+            // Carregar do localStorage
+            let savedVisibility: Record<string, boolean> = {};
+            try {
+                const raw = localStorage.getItem('precin_dashboard_series_visibility');
+                if (raw) savedVisibility = JSON.parse(raw);
+            } catch (e) {
+                console.warn("Erro ao ler visibilidade do localStorage:", e);
+            }
+
+            return newConfig.map((newSeries: ChartSeries) => {
+                const fromSaved = savedVisibility[newSeries.key];
+                const fromPrev = prevVisibilityMap.get(newSeries.key);
+                
+                let isVisible = newSeries.isVisible;
+                // Preferência salva tem prioridade maior, depois estado anterior
+                if (typeof fromSaved === 'boolean') {
+                    isVisible = fromSaved;
+                } else if (typeof fromPrev === 'boolean') {
+                    isVisible = fromPrev;
+                }
+
+                return { ...newSeries, isVisible };
+            });
         });
     }, [chartAndSeriesData.seriesConfig]);
+
+    // --- Salvar visibilidade das séries no localStorage ---
+    useEffect(() => {
+        if (dashboardSeriesConfig.length === 0) return;
+        const visibility: Record<string, boolean> = {};
+        dashboardSeriesConfig.forEach(s => visibility[s.key] = s.isVisible);
+        try {
+            localStorage.setItem('precin_dashboard_series_visibility', JSON.stringify(visibility));
+        } catch (e) {
+            console.warn("Erro ao salvar visibilidade no localStorage:", e);
+        }
+    }, [dashboardSeriesConfig]);
 
     const visibleSeriesNames = useMemo(() => new Set(
         dashboardSeriesConfig.filter(s => s.isVisible).map(s => s.name)
@@ -401,39 +506,51 @@ export const useDashboardData = (
 
     const filteredChartData = useMemo(() => {
         const newChartData: Record<string, ChartData> = {};
-        (Object.keys(chartAndSeriesData.chartData) as string[]).forEach((fuelType) => {
-            const originalData = chartAndSeriesData.chartData[fuelType];
-            if (originalData && 'datasets' in originalData) {
-                newChartData[fuelType] = {
-                    ...originalData,
-                    datasets: originalData.datasets.filter((dataset: ChartDataset) => visibleSeriesNames.has(dataset.label))
-                };
-            }
-        });
+        const cd = chartAndSeriesData.chartData as Record<string, ChartData>;
+        
+        if (cd && typeof cd === 'object') {
+            Object.keys(cd).forEach((key: string) => {
+                const originalData = cd[key];
+                if (originalData && originalData.datasets) {
+                    newChartData[key] = {
+                        ...originalData,
+                        // MODIFICADO: Em vez de filtrar (remover), apenas marcamos como hidden.
+                        // Isso permite que o Chart.js mantenha a referência, mas a lógica de min/max
+                        // no componente charts.tsx irá ignorar os dados hidden para re-escalar.
+                        datasets: originalData.datasets.map((dataset: ChartDataset) => ({
+                            ...dataset,
+                            hidden: !visibleSeriesNames.has(dataset.label)
+                        }))
+                    };
+                }
+            });
+        }
         return newChartData;
     }, [chartAndSeriesData.chartData, visibleSeriesNames]);
 
-// FIX: Replaced the `reduce` method with a `for...of` loop to ensure proper type inference and resolve the "Type 'unknown' cannot be used as an index type" error, which can occur with complex accumulator types in `reduce`.
     const filteredAllBrandPrices = useMemo(() => {
         const allowedBrands = new Set(userBandeiras);
         const result: { [key in BrandName]?: { [product: string]: number } } = {};
-        for (const brand of Object.keys(allBrandPrices) as BrandName[]) {
-            if (allowedBrands.has(brand)) {
-                result[brand] = allBrandPrices[brand];
+        Object.keys(allBrandPrices).forEach((key) => {
+            const brand = key as BrandName;
+            const prices = allBrandPrices[brand];
+            if (allowedBrands.has(brand) && prices) {
+                result[brand] = prices;
             }
-        }
+        });
         return result;
     }, [allBrandPrices, userBandeiras]);
 
-// FIX: Replaced the `reduce` method with a `for...of` loop to ensure proper type inference and resolve the "Type 'unknown' cannot be used as an index type" error, which can occur with complex accumulator types in `reduce`.
     const filteredAllBrandPriceInputs = useMemo(() => {
         const allowedBrands = new Set(userBandeiras);
         const result: { [key in BrandName]?: { [product: string]: string } } = {};
-        for (const brand of Object.keys(allBrandPriceInputs) as BrandName[]) {
-            if (allowedBrands.has(brand)) {
-                result[brand] = allBrandPriceInputs[brand];
-            }
-        }
+        Object.keys(allBrandPriceInputs).forEach((key) => {
+             const brand = key as BrandName;
+             const inputs = allBrandPriceInputs[brand];
+             if (allowedBrands.has(brand) && inputs) {
+                 result[brand] = inputs;
+             }
+        });
         return result;
     }, [allBrandPriceInputs, userBandeiras]);
 
@@ -526,6 +643,9 @@ export const useDashboardData = (
         activeBrand,
         comparisonMode,
         filteredChartData,
+        
+        // Raw data for advanced components (like PurchaseThermometer)
+        rawChartData,
 
         // Handlers and Setters
         handleBrandPriceChange,

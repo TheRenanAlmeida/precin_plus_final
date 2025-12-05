@@ -362,10 +362,46 @@ export const useHistoryData = (
         return processHistoryData(filteredHistoryDataForTable, displayNames);
     }, [filteredHistoryDataForTable, displayNames]);
     
-    // Set series config when chart data changes
+    // Set series config when chart data changes with localStorage support
     useEffect(() => {
-        setSeriesConfig(chartAndSeriesData.seriesConfig);
+        setSeriesConfig(prevConfig => {
+            const newConfig = chartAndSeriesData.seriesConfig;
+            if (!newConfig || newConfig.length === 0) return prevConfig;
+
+            const prevMap = new Map(prevConfig.map(s => [s.key, s.isVisible]));
+            
+            let savedVisibility: Record<string, boolean> = {};
+            try {
+                const raw = localStorage.getItem('precin_history_series_visibility');
+                if (raw) savedVisibility = JSON.parse(raw);
+            } catch (e) {
+                console.warn("Erro ao ler visibilidade do gráfico de histórico:", e);
+            }
+
+            return newConfig.map(series => {
+                const fromSaved = savedVisibility[series.key];
+                const fromPrev = prevMap.get(series.key);
+                
+                let isVisible = series.isVisible;
+                if (typeof fromSaved === 'boolean') isVisible = fromSaved;
+                else if (typeof fromPrev === 'boolean') isVisible = fromPrev;
+
+                return { ...series, isVisible };
+            });
+        });
     }, [chartAndSeriesData.seriesConfig]);
+
+    // Save series config on change
+    useEffect(() => {
+        if (seriesConfig.length === 0) return;
+        const visibility: Record<string, boolean> = {};
+        seriesConfig.forEach(s => visibility[s.key] = s.isVisible);
+        try {
+            localStorage.setItem('precin_history_series_visibility', JSON.stringify(visibility));
+        } catch (e) {
+            console.warn("Erro ao salvar visibilidade do gráfico de histórico:", e);
+        }
+    }, [seriesConfig]);
 
     return {
         loading,

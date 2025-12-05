@@ -7,6 +7,7 @@ import { UserProfile, BandeiraBasePair } from './types';
 // Componentes
 import LoadingScreen from './components/LoadingScreen';
 import ErrorScreen from './components/ErrorScreen';
+import GlobalWatermark from './components/GlobalWatermark'; // Importação do componente global
 
 // Páginas do fluxo
 import AuthPage from './pages/AuthPage';
@@ -39,6 +40,37 @@ type UserProfileResponse = {
 
 // Adiciona a tipagem para a query de bases
 type BaseRecord = { Base: string | null };
+
+/**
+ * Extrai uma mensagem de erro legível de qualquer tipo de exceção.
+ * @param error O erro capturado.
+ * @returns Uma string com a mensagem de erro.
+ */
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    if (error && typeof error === 'object') {
+        const anyError = error as any;
+        // Se a mensagem for um objeto, tenta stringify, senão usa direto
+        if (anyError.message) {
+            if (typeof anyError.message === 'object') {
+                try { return JSON.stringify(anyError.message); } catch { return String(anyError.message); }
+            }
+            return String(anyError.message);
+        }
+        if (anyError.error_description) return String(anyError.error_description);
+        if (anyError.details) return String(anyError.details);
+    }
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return 'Ocorreu um erro desconhecido e não foi possível exibi-lo.';
+    }
+};
 
 
 export default function App() {
@@ -185,22 +217,7 @@ export default function App() {
         }
     } catch (err) {
         console.error('Erro no fluxo de busca de perfil:', err);
-        // FIX: Improved error handling to prevent displaying "[object Object]".
-        // This safely extracts a readable message from various error types.
-        let message = 'Um erro desconhecido ocorreu.';
-        if (err && typeof err === 'object') {
-            if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
-                message = (err as { message: string }).message;
-            } else {
-                try {
-                    message = JSON.stringify(err);
-                } catch {
-                    message = 'Não foi possível converter o erro em texto.';
-                }
-            }
-        } else if (err) {
-            message = String(err);
-        }
+        const message = getErrorMessage(err);
         setStartupError(`Ocorreu um erro ao carregar seu perfil: ${message}`);
     } finally {
         setLoading(false);
@@ -245,17 +262,7 @@ export default function App() {
 
             if (error) {
                 console.error("Erro ao buscar bases para o administrador:", error);
-                // FIX: Improved error handling consistency.
-                let errorMessage = 'Um erro desconhecido ocorreu.';
-                if (typeof error.message === 'string') {
-                    errorMessage = error.message;
-                } else {
-                    try {
-                        errorMessage = JSON.stringify(error);
-                    } catch {
-                         errorMessage = 'Não foi possível converter o erro em texto.';
-                    }
-                }
+                const errorMessage = getErrorMessage(error);
                 setStartupError(`Não foi possível carregar as bases de dados: ${errorMessage}`);
             } else if (data) {
                 // FIX: Explicitly cast `data` to the expected type to resolve the "unknown[] is not assignable to string[]" error, which can occur with complex type inference from database clients.
@@ -286,6 +293,8 @@ export default function App() {
     return () => controller.abort();
   }, [userProfile]);
 
+  // Renderização da Aplicação
+  
   if (startupError) {
       return <ErrorScreen 
           title="Erro na Inicialização" 
@@ -302,51 +311,61 @@ export default function App() {
     return <AuthPage />; 
   }
 
-  if (userProfile) {
-    if (!userProfile.profile_complete) {
-      return <ProfileSetupPage user={session.user} userProfile={userProfile} onProfileComplete={() => fetchUserProfile(session.user)} />;
-    }
-    if (!userProfile.onboarding_complete) {
-        return <OnboardingSetupPage userProfile={userProfile} onOnboardingComplete={() => fetchUserProfile(session.user)} />;
-    }
-
-    const menuProps = { goToDashboard, goToHistory, goToAdmin, userProfile };
-
-    switch (currentView) {
-      case 'menu':
-        return <Menu {...menuProps} />;
-      case 'dashboard':
-        return <DashboardPage 
-            goBack={goToMenu} 
-            userProfile={userProfile}
-            availableBases={availableBases}
-            selectedBase={selectedBase}
-            setSelectedBase={handleSetSelectedBase}
-        />;
-      case 'history':
-        return <History 
-            goBack={goToMenu} 
-            userProfile={userProfile}
-            availableBases={availableBases}
-            selectedFuelType={historySelectedFuelType}
-            setSelectedFuelType={handleSetHistoryFuel}
-            selectedBase={selectedBase}
-            setSelectedBase={handleSetSelectedBase}
-            startDate={historyStartDate}
-            setStartDate={handleSetHistoryStartDate}
-            endDate={historyEndDate}
-            setEndDate={handleSetHistoryEndDate}
-        />;
-      case 'admin':
-        if (userProfile.credencial !== 'administrador') {
-            setCurrentView('menu'); // Redirect non-admins
+  // --- Wrapper principal do conteúdo logado ---
+  // Inclui a Marca D'água Global aqui para estar presente em todas as telas
+  const renderAppContent = () => {
+    if (userProfile) {
+        if (!userProfile.profile_complete) {
+          return <ProfileSetupPage user={session.user} userProfile={userProfile} onProfileComplete={() => fetchUserProfile(session.user)} />;
+        }
+        if (!userProfile.onboarding_complete) {
+            return <OnboardingSetupPage userProfile={userProfile} onOnboardingComplete={() => fetchUserProfile(session.user)} />;
+        }
+    
+        const menuProps = { goToDashboard, goToHistory, goToAdmin, userProfile };
+    
+        switch (currentView) {
+          case 'menu':
+            return <Menu {...menuProps} />;
+          case 'dashboard':
+            return <DashboardPage 
+                goBack={goToMenu} 
+                userProfile={userProfile}
+                availableBases={availableBases}
+                selectedBase={selectedBase}
+                setSelectedBase={handleSetSelectedBase}
+            />;
+          case 'history':
+            return <History 
+                goBack={goToMenu} 
+                userProfile={userProfile}
+                availableBases={availableBases}
+                selectedFuelType={historySelectedFuelType}
+                setSelectedFuelType={handleSetHistoryFuel}
+                selectedBase={selectedBase}
+                setSelectedBase={handleSetSelectedBase}
+                startDate={historyStartDate}
+                setStartDate={handleSetHistoryStartDate}
+                endDate={historyEndDate}
+                setEndDate={handleSetHistoryEndDate}
+            />;
+          case 'admin':
+            if (userProfile.credencial !== 'administrador') {
+                setCurrentView('menu'); // Redirect non-admins
+                return <Menu {...menuProps} />;
+            }
+            return <AdminPage userProfile={userProfile} goBack={goToMenu} />;
+          default:
             return <Menu {...menuProps} />;
         }
-        return <AdminPage userProfile={userProfile} goBack={goToMenu} />;
-      default:
-        return <Menu {...menuProps} />;
     }
-  }
+    return <LoadingScreen message="Verificando sessão..." />;
+  };
 
-  return <LoadingScreen message="Verificando sessão..." />;
+  return (
+    <>
+      <GlobalWatermark userProfile={userProfile} />
+      {renderAppContent()}
+    </>
+  );
 }

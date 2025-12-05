@@ -1,5 +1,7 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { formatPrice } from '../../utils/dataHelpers';
+import { FuelProduct } from '../../constants/fuels';
 
 declare const Chart: any;
 
@@ -28,7 +30,7 @@ export const weekendIndicatorPlugin = {
         ctx.moveTo(xPos, top);
         ctx.lineTo(xPos, bottom);
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)';
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.3)'; // slate-600/30 for dark mode
         ctx.setLineDash([3, 3]);
         ctx.stroke();
       }
@@ -43,6 +45,7 @@ export const refDateIndicatorPlugin = {
     const { refDate } = options;
     if (!refDate) return;
     
+    // Use scales.y properties directly which are updated with zoom/rescale
     const { ctx, data, scales: { x, y } } = chart;
     const refDateString = new Date(refDate.getTime() - (refDate.getTimezoneOffset() * 60000))
         .toISOString().split('T')[0];
@@ -52,6 +55,7 @@ export const refDateIndicatorPlugin = {
 
     const xPos = x.getPixelForValue(refDateIndex);
     
+    // Ensure we draw within the chart area top/bottom (respecting scales)
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(xPos, y.top);
@@ -61,75 +65,60 @@ export const refDateIndicatorPlugin = {
     ctx.setLineDash([6, 3]);
     ctx.stroke();
     ctx.restore();
-
-    ctx.save();
-    data.datasets.forEach((dataset: any) => {
-        const value = dataset.data[refDateIndex];
-        if (value !== null && value !== undefined) {
-            const yPos = y.getPixelForValue(value);
-            ctx.beginPath();
-            ctx.arc(xPos, yPos, 6, 0, 2 * Math.PI, false); // Larger radius
-            ctx.fillStyle = 'rgba(220, 38, 38, 1)'; // red-600
-            ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = 'white';
-            ctx.stroke();
-        }
-    });
-    ctx.restore();
   }
 };
 
-export const getChartOptions = (title: string, isModal: boolean = false, chartData: any = null, refDate: Date, isTooltipPinned: boolean) => {
-  const tooltipColors = [
-    'rgba(34, 197, 94, 0.8)',
-    'rgba(59, 130, 246, 0.8)',
-    'rgba(239, 68, 68, 0.8)',
-  ];
+export const getChartOptions = (
+    title: string, 
+    isModal: boolean = false, 
+    chartData: any = null, 
+    refDate: Date, 
+    isTooltipPinned: boolean
+) => {
+  const refDateString = new Date(refDate.getTime() - (refDate.getTimezoneOffset() * 60000))
+      .toISOString().split('T')[0];
+  const refDateIndex = chartData?.labels?.indexOf(refDateString) ?? -1;
 
   const options: any = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: {
       mode: 'nearest' as const,
-      intersect: true,
+      intersect: false,
     },
     plugins: {
       legend: {
+        display: isModal,
         position: 'top' as const,
         labels: {
-          font: { size: isModal ? 14 : 10 },
-          boxWidth: isModal ? 30 : 20,
-          boxHeight: isModal ? 14 : 10,
-          padding: 20,
-          usePointStyle: false,
+          color: '#94a3b8', // slate-400
+          font: { size: isModal ? 14 : 11, family: 'Inter, sans-serif' },
+          boxWidth: 12,
+          boxHeight: 12,
+          padding: 15,
+          usePointStyle: true,
         },
       },
       title: {
-        display: true,
-        text: title,
-        font: {
-          size: isModal ? 20 : 16,
-          weight: 'bold' as const,
-        },
-        color: '#334155',
+        display: false, // Title handled in React layout
       },
       refDateIndicator: {
           refDate: refDate
       },
       tooltip: {
         enabled: true,
-        backgroundColor: (context: any) => {
-          if (context.tooltip.dataPoints.length > 0) {
-            const index = context.tooltip.dataPoints[0].datasetIndex;
-            return tooltipColors[index] || 'rgba(15, 23, 42, 0.8)';
-          }
-          return 'rgba(15, 23, 42, 0.8)';
-        },
+        backgroundColor: 'rgba(15, 23, 42, 0.8)', // slate-950 com 80% de opacidade
+        backdropFilter: 'blur(4px)',
+        titleColor: '#f1f5f9', // slate-100
+        bodyColor: '#cbd5e1', // slate-300
+        borderColor: '#1e293b', // slate-800
+        borderWidth: 1,
         titleFont: { size: isModal ? 14 : 12, weight: 'bold' as const },
-        bodyFont: { size: isModal ? 16 : 14, weight: 'bold' as const },
-        padding: isModal ? 12 : 10,
-        displayColors: false,
+        bodyFont: { size: isModal ? 14 : 12, weight: 'normal' as const },
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        usePointStyle: true,
         events: isTooltipPinned ? [] : ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
         callbacks: {
           title: (context: any) => {
@@ -157,6 +146,15 @@ export const getChartOptions = (title: string, isModal: boolean = false, chartDa
             }
             return label;
           },
+          labelColor: (ctx: any) => {
+            const color = ctx.dataset.borderColor as string || '#94a3b8';
+            return {
+                borderColor: color,
+                backgroundColor: color, 
+                borderWidth: 0,
+                borderRadius: 2,
+            };
+          },
         },
       },
     },
@@ -164,15 +162,21 @@ export const getChartOptions = (title: string, isModal: boolean = false, chartDa
       y: {
         ticks: {
           callback: (value: number) => formatPrice(value),
-          font: { size: isModal ? 12 : 10 },
+          font: { size: 10, family: 'Inter, sans-serif' },
+          color: '#64748b', // slate-500
         },
-        min: 0,
-        max: 0,
+        grid: {
+            color: '#1e293b', // slate-800
+            drawBorder: false,
+        },
+        border: { display: false },
+        // min/max will be calculated below
       },
       x: {
         grid: { display: false },
         ticks: { 
-          font: { size: isModal ? 12 : 10 },
+          font: { size: 10, family: 'Inter, sans-serif' },
+          color: '#64748b', // slate-500
           callback: function(this: any, value: number) {
             const label = this.chart.data.labels[value] as string;
             if (label) {
@@ -189,35 +193,71 @@ export const getChartOptions = (title: string, isModal: boolean = false, chartDa
       },
     },
     elements: {
+        line: {
+            borderWidth: 2,
+            tension: 0.3,
+        },
         point: {
-            radius: isModal ? 4 : 3,
-            hoverRadius: isModal ? 6 : 5,
+            radius: (ctx: any) => (ctx.active || ctx.dataIndex === refDateIndex) ? (isModal ? 5 : 4) : 0,
+            hoverRadius: (ctx: any) => isModal ? 6 : 5,
             hitRadius: 15,
+            pointStyle: (ctx: any) => {
+                if (ctx.active || ctx.dataIndex === refDateIndex) {
+                    return ctx.dataset.seriesType === 'distributor' ? 'crossRot' : 'circle';
+                }
+                return false;
+            },
+            backgroundColor: (ctx: any) => {
+                const color = ctx.dataset.borderColor as string;
+                return '#0f172a'; // Dark background for point fill
+            },
+            borderColor: (ctx: any) => {
+                const color = ctx.dataset.borderColor as string;
+                return color;
+            },
+            borderWidth: 2,
         }
     }
   };
 
   if (chartData?.datasets) {
-    const allDataPoints = chartData.datasets.flatMap((dataset: any) => dataset.data);
+    // Only consider datasets that are NOT hidden for the scale calculation
+    const visibleDatasets = chartData.datasets.filter((d: any) => !d.hidden);
+    
+    const allDataPoints = visibleDatasets.flatMap((dataset: any) => dataset.data);
     const validDataPoints = allDataPoints.filter((p: number | null) => p !== null && isFinite(p));
+    
     if (validDataPoints.length > 0) {
-      const dataMin = Math.min(...validDataPoints);
-      const dataMax = Math.max(...validDataPoints);
-      const range = dataMax - dataMin;
+      let dataMin = Math.min(...validDataPoints);
+      let dataMax = Math.max(...validDataPoints);
+      let range = dataMax - dataMin;
       
-      let stepSize = 0.02;
-      if (range > 0.7) {
-          stepSize = 0.08;
-      } else if (range > 0.3) {
-          stepSize = 0.04;
+      // Enforce minimum step of 0.02
+      let stepSize = 0.02; 
+      
+      // Dynamic padding to "gain space" when removing outliers
+      // If range is tiny (<= 0.04), we center it with small padding
+      // If range is large, we allow bigger steps
+      if (range > 0.7) stepSize = 0.08;
+      else if (range > 0.3) stepSize = 0.04;
+      else if (range <= 0.02) {
+          // Extra tight case: center the line
+          const mid = (dataMin + dataMax) / 2;
+          dataMin = mid - 0.03;
+          dataMax = mid + 0.03;
       }
-      
+
+      // Calculate padded min/max aligned to stepSize
       const paddedMin = (Math.floor(dataMin / stepSize) * stepSize) - stepSize;
       const paddedMax = (Math.ceil(dataMax / stepSize) * stepSize) + stepSize;
 
       options.scales.y.min = Math.max(0, paddedMin);
       options.scales.y.max = paddedMax;
       options.scales.y.ticks.stepSize = stepSize;
+    } else {
+        // Fallback if all data is hidden
+        options.scales.y.min = 0;
+        options.scales.y.max = 1;
     }
   }
 
@@ -244,11 +284,9 @@ export const PriceEvolutionChart: React.FC<{
             }
         }
     };
-    
     document.addEventListener('keydown', handleUnpin);
     const chartElement = chartRef.current;
     chartElement?.addEventListener('mouseleave', handleUnpin);
-    
     return () => {
         document.removeEventListener('keydown', handleUnpin);
         chartElement?.removeEventListener('mouseleave', handleUnpin);
@@ -308,7 +346,7 @@ export const PriceEvolutionChart: React.FC<{
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 relative transition-all duration-300 ${isCarouselItem ? 'h-full' : 'h-80'} ${isCenter ? 'cursor-pointer' : ''}`}
+      className={`relative transition-all duration-300 ${isCarouselItem ? 'h-full' : 'h-80'} ${isCenter ? 'cursor-pointer' : ''}`}
       onClick={(e) => {
         const isCanvasClick = e.target instanceof HTMLCanvasElement;
         if (!isCanvasClick && onExpand && isCenter) {
@@ -394,10 +432,11 @@ export const ChartModal: React.FC<{
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4 sm:p-8" onClick={onClose}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <header className="p-2 border-b border-gray-200 flex justify-end items-center">
-                <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500">
+    <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4 sm:p-8 backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 w-full max-w-6xl h-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <header className="p-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-slate-100 ml-4">{title}</h3>
+                <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -412,166 +451,46 @@ export const ChartModal: React.FC<{
 };
 
 export const ChartCarousel: React.FC<{
-  products: string[];
+  // FIX: Updated the type of 'products' to be more specific, expecting an array of FuelProduct.
+  products: FuelProduct[];
   chartData: { [key: string]: any };
   refDate: Date;
   onChartExpand: (fuelType: string) => void;
-}> = ({ products, chartData, refDate, onChartExpand }) => {
+  selectedFuel?: string;
+  onSelectedFuelChange?: (fuel: string) => void;
+}> = ({ products, chartData, refDate, onChartExpand, selectedFuel, onSelectedFuelChange }) => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(true);
-  
-  const isDragging = useRef(false);
-  const dragStartX = useRef(0);
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const dragThreshold = useRef(5);
-  const pointerDownSlideIndex = useRef<number | null>(null);
-
-  const goToSlide = useCallback((index: number) => {
-    setActiveIndex(index);
-  }, []);
-
-  const goToNext = useCallback(() => {
-    setActiveIndex((prevIndex) => (prevIndex + 1) % products.length);
-  }, [products.length]);
-
-  const goToPrev = useCallback(() => {
-    setActiveIndex((prevIndex) => (prevIndex - 1 + products.length) % products.length);
-  }, [products.length]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (products.length <= 1) return;
-    
-    const slideElement = (e.target as HTMLElement)?.closest('[data-slide-index]');
-    pointerDownSlideIndex.current = slideElement ? parseInt(slideElement.getAttribute('data-slide-index') || '-1', 10) : null;
-
-    isDragging.current = true;
-    dragStartX.current = e.clientX;
-    setDragOffset(0);
-    setIsTransitioning(false);
-    if (carouselRef.current) carouselRef.current.style.cursor = 'grabbing';
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    setDragOffset(e.clientX - dragStartX.current);
-  };
-
-  const handlePointerUp = (event?: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-    setIsTransitioning(true);
-
-    if (carouselRef.current) carouselRef.current.style.cursor = 'grab';
-    
-    if (Math.abs(dragOffset) < dragThreshold.current) {
-        const slideIndex = pointerDownSlideIndex.current;
-        if (slideIndex !== null && slideIndex !== -1) {
-            if (slideIndex === activeIndex) {
-                const isCanvasClick = (event?.target as HTMLElement)?.tagName === 'CANVAS';
-                if (!isCanvasClick) {
-                    onChartExpand(products[activeIndex]);
-                }
-            } else {
-                goToSlide(slideIndex);
-            }
-        }
-    } else {
-        const swipeThreshold = 50; 
-        if (dragOffset > swipeThreshold) goToPrev();
-        else if (dragOffset < -swipeThreshold) goToNext();
-    }
-    
-    setDragOffset(0);
-    pointerDownSlideIndex.current = null;
-  };
   
   useEffect(() => {
-    const carouselElement = carouselRef.current;
-    const preventContextMenu = (e: Event) => e.preventDefault();
-    if (carouselElement) {
-      carouselElement.addEventListener('contextmenu', preventContextMenu);
-      return () => carouselElement.removeEventListener('contextmenu', preventContextMenu);
+    if (selectedFuel) {
+      const idx = products.indexOf(selectedFuel as FuelProduct);
+      if (idx !== -1 && idx !== activeIndex) {
+        setActiveIndex(idx);
+      }
     }
-  }, []);
+  }, [selectedFuel, products, activeIndex]);
+
+  // If chartData isn't ready for selectedFuel, show empty state
+  if (!selectedFuel || !chartData[selectedFuel]) return <div className="flex items-center justify-center h-full text-slate-500 text-sm">Carregando gráfico...</div>;
 
   return (
-    <div className="relative w-full h-[350px] flex items-center justify-center">
-      <button 
-        onClick={goToPrev} 
-        className="absolute left-0 sm:-left-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/60 backdrop-blur-sm shadow-lg hover:bg-white/90 transition-all disabled:opacity-50"
-        aria-label="Gráfico Anterior"
-        disabled={products.length <= 1}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-gray-800"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-      </button>
-
-      <div 
-        ref={carouselRef}
-        className="relative w-full h-full overflow-hidden touch-pan-y"
-        style={{ perspective: '1500px', transformStyle: 'preserve-3d', cursor: products.length > 1 ? 'grab' : 'default' }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        {products.map((fuelType, index) => {
-          const numProducts = products.length;
-          const carouselWidth = carouselRef.current?.offsetWidth || window.innerWidth;
-          
-          let offset = index - activeIndex;
-          if (numProducts > 2) { 
-            if (offset > numProducts / 2) offset -= numProducts;
-            if (offset < -numProducts / 2) offset += numProducts;
-          }
-
-          const dragProgress = isTransitioning ? 0 : dragOffset / carouselWidth;
-          const effectiveOffset = offset - dragProgress;
-          const absEffectiveOffset = Math.abs(effectiveOffset);
-
-          if (absEffectiveOffset > 2) return <div key={fuelType} style={{ display: 'none' }} />;
-
-          const scale = 1 - 0.2 * Math.min(absEffectiveOffset, 2);
-          const translateZ = -150 * Math.min(absEffectiveOffset, 2);
-          const rotateY = -40 * effectiveOffset;
-          const opacity = Math.max(0, 1 - 0.5 * absEffectiveOffset);
-          const translateX = effectiveOffset * 65;
-
-          const style: React.CSSProperties = {
-            transform: `translateX(${translateX}%) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
-            opacity: opacity,
-            zIndex: products.length - Math.round(absEffectiveOffset),
-            transition: isTransitioning ? 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease' : 'none',
-            position: 'absolute', width: '60%', height: '100%', top: 0, left: '20%',
-            pointerEvents: !isDragging.current ? 'auto' : 'none',
-          };
-
-          return (
-            <div key={fuelType} style={style} data-slide-index={index}>
-              <PriceEvolutionChart title={fuelType} chartData={chartData[fuelType]} refDate={refDate} onExpand={() => onChartExpand(fuelType)} isCarouselItem={true} isCenter={offset === 0} />
-            </div>
-          );
-        })}
+    <div className="relative w-full h-full">
+      <div className="w-full h-full">
+          <PriceEvolutionChart 
+            title={selectedFuel} 
+            chartData={chartData[selectedFuel]} 
+            refDate={refDate} 
+            onExpand={() => onChartExpand(selectedFuel)} 
+            isCarouselItem={true} 
+            isCenter={true} 
+          />
       </div>
-
-      <button 
-        onClick={goToNext} 
-        className="absolute right-0 sm:-right-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/60 backdrop-blur-sm shadow-lg hover:bg-white/90 transition-all disabled:opacity-50"
-        aria-label="Próximo Gráfico"
-        disabled={products.length <= 1}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-gray-800"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-      </button>
     </div>
   );
 };
 
 export const ChartHeader: React.FC<{ selectedBase: string, refDate: Date }> = ({ selectedBase, refDate }) => (
-    <div className="text-center space-y-2">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-wide">Evolução de Preços - Base {selectedBase}</h2>
-        <div className="inline-block bg-red-100 text-red-800 text-sm font-semibold px-4 py-1.5 rounded-full border border-red-300">
-            Data selecionada: {refDate.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC' })}
-        </div>
+    <div className="text-center space-y-1 mb-4">
+        <h2 className="text-xl font-bold text-slate-100 tracking-wide">Evolução - {selectedBase}</h2>
     </div>
 );

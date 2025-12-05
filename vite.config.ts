@@ -22,6 +22,18 @@ export default defineConfig(({ mode }) => {
           // FIX: Replaced __dirname with the standard ESM equivalent to avoid "Cannot find name" error.
           '@': path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          // Externaliza dependências que são carregadas via CDN (importmap) para evitar erros de build
+          external: ['html2canvas', 'jspdf'],
+          output: {
+            globals: {
+              html2canvas: 'html2canvas',
+              jspdf: 'jspdf'
+            }
+          }
+        }
       }
     };
 });

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile, BandeiraBasePair, DistributorDBStyle, DistributorStyle } from '../types';
@@ -74,23 +73,23 @@ interface SavedPreferenceCardProps {
 }
 
 const SavedPreferenceCard: React.FC<SavedPreferenceCardProps> = ({ displayName, base, index, onRemove, style, imageUrl }) => (
-    <div className="relative bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden transition hover:shadow-md h-full">
+    <div className="relative bg-slate-800/50 border border-slate-700/50 rounded-xl shadow-sm overflow-hidden hover:bg-slate-800 hover:border-slate-600 transition group h-full">
         <div className="absolute left-0 top-0 h-full w-2 rounded-l-xl" style={{ background: style.background }}></div>
         <div className="p-4 pl-6 flex flex-col justify-between h-full">
             <div>
                 <div className="flex justify-between items-start">
                      <div className="flex items-center gap-3">
                         <DistributorLogo distributorName={displayName} imageUrl={imageUrl} />
-                        <h3 className="font-semibold text-gray-800">{displayName}</h3>
+                        <h3 className="font-semibold text-slate-200">{displayName}</h3>
                     </div>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">Base: <span className="font-medium text-gray-700">{base}</span></p>
+                <p className="text-sm text-slate-400 mt-2">Base: <span className="font-medium text-slate-300">{base}</span></p>
             </div>
-            <div className="flex justify-end mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-end mt-3 pt-3 border-t border-slate-700/50">
                 <button 
                     type="button" 
                     onClick={() => onRemove(index)} 
-                    className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors flex items-center gap-1"
+                    className="text-xs font-medium text-rose-400 hover:text-rose-300 transition-colors flex items-center gap-1"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     Remover
@@ -102,14 +101,26 @@ const SavedPreferenceCard: React.FC<SavedPreferenceCardProps> = ({ displayName, 
 
 
 // --- Componente para o Card de Adicionar Novo ---
-const AddNewCard: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+const AddNewCard: React.FC<{ onClick: () => void, isFirst: boolean }> = ({ onClick, isFirst }) => (
     <button 
         type="button" 
         onClick={onClick}
-        className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[#00502a] rounded-xl text-[#00502a] hover:bg-green-50 transition-colors h-full min-h-[150px] sm:min-h-0 shadow-inner"
+        className={`
+            flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl transition-all h-full min-h-[150px] sm:min-h-0 shadow-inner group relative overflow-hidden
+            ${isFirst 
+                ? 'border-emerald-500/50 bg-emerald-950/10 text-emerald-400 hover:bg-emerald-950/20 hover:border-emerald-400' 
+                : 'border-slate-700 text-slate-500 hover:bg-slate-800/50 hover:text-emerald-400 hover:border-emerald-500/50'
+            }
+        `}
     >
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-        <span className="mt-2 font-medium text-base">Adicionar Nova Configuração</span>
+        {isFirst && <span className="absolute top-2 right-2 flex h-3 w-3">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+        </span>}
+        
+        <svg className="w-10 h-10 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+        <span className="font-bold text-base transition-colors">Adicionar Configuração</span>
+        <span className="text-xs mt-1 opacity-70 font-medium">Bandeira + Base</span>
     </button>
 );
 
@@ -242,15 +253,37 @@ export default function OnboardingSetupPage({ userProfile, onOnboardingComplete 
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
-            <div className="max-w-4xl w-full bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-800 mt-4">Configuração Inicial</h1>
-                    <p className="text-gray-500 mt-2">Bem-vindo(a), {userProfile.nome}! Adicione as distribuidoras e as bases que você deseja monitorar.</p>
+        <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4">
+            <div className="max-w-5xl w-full bg-slate-900 p-8 rounded-2xl shadow-2xl border border-slate-800">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Vamos configurar seu painel</h1>
+                    <p className="text-slate-400 mt-2 text-lg">Olá, {userProfile.nome.split(' ')[0]}! Defina suas operações para personalizarmos a análise de mercado.</p>
+                    
+                    {/* Seção Educativa "Por que?" */}
+                    <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex gap-4 items-start">
+                        <div className="bg-emerald-950/30 p-2 rounded-lg border border-emerald-900/50 hidden sm:block">
+                            <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-1">Como isso impacta seu dia a dia?</h3>
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                Ao selecionar sua <strong>Distribuidora</strong> e <strong>Base</strong>, o sistema cria um painel comparativo automático. 
+                                Você verá se o seu preço de compra está competitivo em relação à média, mínima e máxima praticadas na sua região específica.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* Botão de Adicionar sempre visível, com destaque se a lista estiver vazia */}
+                        <AddNewCard 
+                            onClick={() => { setError(null); setIsModalOpen(true); }} 
+                            isFirst={preferences.length === 0} 
+                        />
+
                         {processedPreferences.map((pair, index) => {
                             const originalName = getOriginalBrandName(pair.displayName);
                             const style = getDistributorStyle(originalName, dbStyles);
@@ -267,15 +300,27 @@ export default function OnboardingSetupPage({ userProfile, onOnboardingComplete 
                                 />
                             );
                         })}
-                        <AddNewCard onClick={() => { setError(null); setIsModalOpen(true); }} />
                     </div>
                     
-                    {error && <p className="mt-6 text-center text-sm text-red-600">{error}</p>}
+                    {error && <p className="mt-6 text-center text-sm text-rose-400 bg-rose-950/30 p-2 rounded-lg border border-rose-900/50">{error}</p>}
                     
-                    <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-                        <button type="submit" disabled={isSubmitting || preferences.length === 0} className="w-full md:w-1/2 flex justify-center mx-auto py-3 px-4 border border-transparent rounded-full shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:bg-gray-400">
-                            {isSubmitting ? 'Salvando...' : 'Concluir e ir para o Dashboard'}
+                    <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col items-center">
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting || preferences.length === 0} 
+                            className={`
+                                w-full md:w-1/2 py-3 px-6 rounded-full font-bold text-base shadow-lg transition-all
+                                ${preferences.length === 0 
+                                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' 
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-500 hover:scale-105 ring-2 ring-offset-2 ring-offset-slate-900 ring-emerald-600'
+                                }
+                            `}
+                        >
+                            {isSubmitting ? 'Configurando...' : 'Finalizar e Acessar Dashboard'}
                         </button>
+                        {preferences.length === 0 && (
+                            <p className="text-xs text-slate-500 mt-3 animate-pulse">Adicione pelo menos uma configuração acima para continuar.</p>
+                        )}
                     </div>
                 </form>
             </div>

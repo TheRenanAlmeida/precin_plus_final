@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useMemo } from 'react';
 
 interface WatermarkContainerProps {
   children: React.ReactNode;
@@ -8,9 +9,7 @@ interface WatermarkContainerProps {
   enabled?: boolean;
   className?: string;
   /**
-   * Quantos pixels do topo devem ficar SEM marca d’água.
-   * Ex: 0 = marca d’água desde o topo
-   * Ex: 140 = só a partir de 140px pra baixo
+   * Quantos pixels do topo devem ficar SEM marca d’água (offset visual).
    */
   offsetTop?: number;
 }
@@ -24,43 +23,71 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
   className = '',
   offsetTop = 0,
 }) => {
-  const shouldShow = enabled && (company || cnpj || email);
+  const backgroundImage = useMemo(() => {
+    if (!enabled || (!company && !cnpj && !email)) return 'none';
 
-  const watermarkBlock = (
-    <div className="flex flex-col text-center leading-tight">
-      <span>{company}</span>
-      <span>{cnpj}</span>
-      <span>{email}</span>
-    </div>
-  );
+    // Cores e estilo do texto SVG
+    const textColor = '#94a3b8'; // slate-400
+    const opacity = 0.08; // Bem sutil
+    const fontSize = 13;
+    const rotation = -30;
+    
+    // Tamanho do "azulejo" repetido
+    const width = 350;
+    const height = 350;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Construção segura do SVG string
+    // Usamos <tspan> para quebra de linha manual, centralizando cada linha
+    const svgString = `
+      <svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>
+        <style>
+          .wm-text { 
+            fill: ${textColor}; 
+            font-size: ${fontSize}px; 
+            font-weight: 700; 
+            font-family: ui-sans-serif, system-ui, sans-serif; 
+            opacity: ${opacity};
+            pointer-events: none;
+            user-select: none;
+          }
+        </style>
+        <text 
+          x='${centerX}' 
+          y='${centerY}' 
+          text-anchor='middle' 
+          dominant-baseline='middle' 
+          transform='rotate(${rotation} ${centerX} ${centerY})' 
+          class='wm-text'
+        >
+          ${company ? `<tspan x='${centerX}' dy='-1.4em'>${company}</tspan>` : ''}
+          ${email ? `<tspan x='${centerX}' dy='1.4em'>${email}</tspan>` : ''}
+          ${cnpj ? `<tspan x='${centerX}' dy='1.4em'>${cnpj}</tspan>` : ''}
+        </text>
+      </svg>
+    `.trim().replace(/\s+/g, ' ');
+
+    // Codifica para Base64 para usar no CSS background
+    // escape() é deprecated mas funcional para utf8 simples, ou encodeURIComponent para maior segurança
+    const encodedSVG = typeof window !== 'undefined' && window.btoa 
+      ? window.btoa(unescape(encodeURIComponent(svgString)))
+      : ''; 
+      
+    return `url("data:image/svg+xml;base64,${encodedSVG}")`;
+  }, [company, cnpj, email, enabled]);
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {/* Grade de blocos repetidos - só a partir de offsetTop */}
-      {shouldShow && (
-        <div
-          className="
-            pointer-events-none absolute left-0 right-0 bottom-0
-            z-[60] select-none
-            opacity-10 text-gray-700 font-semibold
-            grid place-items-center
-          "
-          style={{
-            top: offsetTop,
-            transform: 'rotate(-30deg)',
-            fontSize: '14px',
-            gridTemplateColumns: 'repeat(auto-fill, 260px)',
-            gridAutoRows: '120px',
-          }}
-        >
-          {Array.from({ length: 60 }).map((_, i) => (
-            <div key={i}>{watermarkBlock}</div>
-          ))}
-        </div>
-      )}
-
-      {/* Conteúdo normal */}
-      <div className="relative z-10">
+    <div 
+        className={`relative overflow-hidden ${className}`}
+        style={{
+            backgroundImage: backgroundImage,
+            backgroundRepeat: 'repeat',
+            backgroundPosition: `0px ${offsetTop}px`, // Respeita o offsetTop movendo o bg
+        }}
+    >
+      {/* O conteúdo fica por cima (z-index natural ou definido) */}
+      <div className="relative z-10 h-full">
         {children}
       </div>
     </div>

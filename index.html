@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -12,7 +13,6 @@
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
       /* Hide arrows from number input */
-      /* Chrome, Safari, Edge, Opera */
       input::-webkit-outer-spin-button,
       input::-webkit-inner-spin-button {
         -webkit-appearance: none;
@@ -24,31 +24,30 @@
         -moz-appearance: textfield;
       }
 
-      /* Custom Scrollbar Styles */
-      /* For Webkit-based browsers (Chrome, Safari, Edge) */
+      /* Custom Scrollbar Styles - Dark Mode */
       ::-webkit-scrollbar {
         width: 10px;
         height: 10px;
       }
 
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; /* slate-100 */
+        background: #0f172a; /* slate-950 */
       }
 
       ::-webkit-scrollbar-thumb {
-        background-color: #16a34a; /* green-600 */
+        background-color: #334155; /* slate-700 */
         border-radius: 20px;
-        border: 2px solid #f1f5f9; /* slate-100, creates padding */
+        border: 2px solid #0f172a; /* slate-950 */
       }
 
       ::-webkit-scrollbar-thumb:hover {
-        background-color: #15803d; /* green-700 */
+        background-color: #475569; /* slate-600 */
       }
 
       /* For Firefox */
       html {
         scrollbar-width: thin;
-        scrollbar-color: #16a34a #f1f5f9; /* thumb color, track color */
+        scrollbar-color: #334155 #0f172a;
       }
       
       .distributor-pill {
@@ -74,29 +73,37 @@
         position: relative;
       }
       
-      /* Custom styles for date input with green label */
+      /* Custom styles for date input - Dark Mode Adaptation */
       .custom-date-picker-style {
-        color-scheme: light; /* Enforces a light-themed calendar popup */
-        /* The following properties are hints for some browsers to style the calendar */
-        background-color: white;
-        color: #166534; /* text-green-800 */
+        color-scheme: dark;
+        background-color: transparent;
+        color: #e2e8f0; /* slate-200 */
       }
 
       .custom-date-picker-style::-webkit-calendar-picker-indicator {
-          /* This filter converts the default dark icon to a shade of green */
-          filter: invert(31%) sepia(92%) saturate(985%) hue-rotate(94deg) brightness(96%) contrast(87%);
           cursor: pointer;
-          transition: filter 0.2s ease-in-out;
+          opacity: 0.6;
+          transition: opacity 0.2s ease-in-out;
       }
       .custom-date-picker-style::-webkit-calendar-picker-indicator:hover {
-        /* Make the green a bit brighter on hover */
-          filter: invert(31%) sepia(92%) saturate(1500%) hue-rotate(94deg) brightness(96%) contrast(87%);
+          opacity: 1;
       }
 
       .nocopy {
         -webkit-user-select: none; /* Safari */
         -ms-user-select: none; /* IE 10+ */
         user-select: none; /* Standard syntax */
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
       }
     </style>
     <script>
@@ -129,7 +136,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-slate-50 nocopy">
+  <body class="bg-slate-950 text-slate-200 nocopy">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

@@ -39,7 +39,11 @@ export const fetchDistributorsAndStyles = async (signal?: AbortSignal): Promise<
             distributorsError: distributorsResult.error as Error | null,
             stylesError: stylesResult.error as Error | null,
         };
-    } catch (error) {
+    } catch (error: any) {
+        // Rethrow AbortError so the caller can handle it (ignore it)
+        if (error.name === 'AbortError' || error.message?.includes('Aborted') || error.message?.includes('aborted')) {
+            throw error;
+        }
         console.error('Unexpected error in fetchDistributorsAndStyles:', error);
         return {
             distributorsData: null,

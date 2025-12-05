@@ -40,8 +40,17 @@ export const fetchUserDailyPricesForDate = async (userId: string, date: Date, si
     const { data: userPrices, error } = await query.returns<UserPriceRecord[]>();
 
     if (error) {
-        console.error("Error loading saved daily prices:", error);
-        return { prices: {}, inputs: {} };
+        // Verifica se o erro é devido ao cancelamento da requisição (AbortError)
+        // O Supabase/Postgrest pode retornar erros com mensagens variadas para aborts.
+        if (error.message && (error.message.includes('AbortError') || error.message.includes('aborted'))) {
+             // Lança como um DOMException AbortError padrão para ser capturado silenciosamente pelo hook
+             throw new DOMException('Aborted', 'AbortError');
+        }
+
+        // Aprimora o log para exibir a mensagem real do erro, evitando [object Object].
+        console.error("Error loading saved daily prices:", error.message || error);
+        // Lança o erro para ser tratado pela camada que chamou o serviço (o hook).
+        throw error;
     }
 
     const loadedPrices: UserPricesResponse['prices'] = {};

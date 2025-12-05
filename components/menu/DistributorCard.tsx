@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BandeiraBasePair, DistributorStyle } from '../../types';
 import { FUEL_PRODUCTS } from '../../constants/fuels';
@@ -28,7 +29,7 @@ const DistributorCard: React.FC<DistributorCardProps> = ({ dist, style, lastPric
 
     return (
         <div onClick={() => onSelect(dist)}
-            className="relative cursor-pointer bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition">
+            className="relative cursor-pointer bg-slate-800/50 border border-slate-700/50 rounded-xl shadow-sm overflow-hidden hover:bg-slate-800 hover:border-slate-600 transition group">
             <div className="absolute left-0 top-0 h-full w-2 rounded-l-xl" style={{ background: style.background }}></div>
             <div className="p-4 pl-6">
                 <div className="flex justify-between items-center mb-1">
@@ -37,14 +38,14 @@ const DistributorCard: React.FC<DistributorCardProps> = ({ dist, style, lastPric
                             <img
                                 src={imageUrl}
                                 alt={dist.bandeira}
-                                className="w-8 h-8 rounded-full bg-white/20 p-0.5 object-contain border border-gray-200"
+                                className="w-8 h-8 rounded-full bg-white/20 p-0.5 object-contain border border-slate-600"
                             />
                         )}
-                        <h3 className="font-semibold text-gray-800">{dist.bandeira}</h3>
+                        <h3 className="font-bold text-slate-200 group-hover:text-white transition-colors">{dist.bandeira}</h3>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">{dist.base}</span>
+                    <span className="text-[10px] uppercase font-bold px-2 py-1 rounded bg-slate-900 text-slate-500 border border-slate-700">{dist.base}</span>
                 </div>
-                <p className="text-sm text-gray-500 mb-2">Última atualização: {formattedLastUpdate || '—'}</p>
+                <p className="text-xs text-slate-500 mb-3">Última atualização: {formattedLastUpdate || '—'}</p>
                 <div className="space-y-1 text-sm">
                     {hasAnyPrice ? productsToShow.map(product => {
                         const priceInfo = brandPrices?.[product];
@@ -57,16 +58,16 @@ const DistributorCard: React.FC<DistributorCardProps> = ({ dist, style, lastPric
                         }[product] || product;
                         
                         return (
-                            <div key={product} className="flex justify-between border-t border-gray-100 pt-1 first:border-t-0 first:pt-0">
-                                <span className="text-gray-700">{productAbbr}</span>
-                                <span className="font-semibold text-gray-800 tabular-nums">
+                            <div key={product} className="flex justify-between border-t border-slate-700/50 pt-1 first:border-t-0 first:pt-0">
+                                <span className="text-slate-400 text-xs uppercase font-medium">{productAbbr}</span>
+                                <span className="font-sans tabular-nums font-bold text-slate-200">
                                     {priceInfo ? `R$ ${priceInfo.price.toFixed(4).replace('.', ',')}` : '-'}
                                 </span>
                             </div>
                         );
                     }) : (
-                        <div className="text-center text-gray-500 py-4 border-t border-gray-100">
-                            <span className="text-sm font-medium">Clique para cotar</span>
+                        <div className="text-center text-slate-500 py-2 border-t border-slate-700/50">
+                            <span className="text-xs font-medium uppercase tracking-wide">Clique para cotar</span>
                         </div>
                     )}
                 </div>

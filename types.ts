@@ -1,5 +1,7 @@
 import type { ChangeEvent, RefObject } from 'react';
-import { FuelProduct } from './constants/fuels';
+// FIX: Import `FuelProduct` to use within this module and re-export it for other modules.
+import type { FuelProduct } from './constants/fuels';
+export type { FuelProduct };
 
 // A constante BRANDS foi removida para permitir que as bandeiras sejam carregadas dinamicamente.
 // export const BRANDS = ['Shell', 'Ipiranga', 'Vibra', 'Branca/Indefinida'] as const;
@@ -197,7 +199,6 @@ export interface HistoryDataTableProps {
     processedData: ProcessedRow[];
     visibleColumns: string[];
     getDistributorColor: (name: string) => DistributorStyle;
-    distributorImages: { [key: string]: string | null };
     selectedTableDistributors: Set<string>;
 }
 

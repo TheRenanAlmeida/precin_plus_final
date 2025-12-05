@@ -1,0 +1,51 @@
+// config.ts
+import type { DistributorStyle } from './types';
+
+/**
+ * @deprecated As cores das distribuidoras agora são gerenciadas dinamicamente
+ * através da tabela `pplus_distributor_styles` no Supabase.
+ * Utilize o Painel de Administrador para editar os estilos.
+ * Este objeto é mantido apenas como referência histórica e não é mais utilizado pela aplicação.
+ */
+export const DISTRIBUTOR_BRAND_COLORS: Record<string, DistributorStyle> = {
+  // 'ALE': { background: 'rgba(0, 95, 170, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(255, 0, 0, 0.5)' },
+  // 'ATEM': { background: 'rgba(230, 0, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Artpetro': { background: 'rgba(230, 110, 20, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Atlantica': { background: 'rgba(0, 100, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Branca/Indefinida': { background: 'rgba(248, 250, 252, 0.9)', border: 'rgba(71, 85, 105, 0.9)', shadowColor: 'rgba(100, 116, 139, 0.5)' },
+  // 'Charrua': { background: 'rgba(255, 0, 0, 0.9)', border: 'rgba(255, 221, 0, 0.9)' },
+  // 'Cia Petro': { background: 'rgba(255, 221, 0, 0.9)', border: 'rgba(0, 67, 155, 0.9)', shadowColor: 'rgba(0, 75, 145, 0.5)' },
+  // 'Danpetro': { background: 'rgba(230, 0, 25, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(50, 50, 50, 0.4)' },
+  // 'Estrada': { background: 'rgba(0, 60, 150, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Federal': { background: 'rgba(0, 61, 128, 0.9)', border: 'rgba(255, 255, 0, 0.9)', shadowColor: 'rgba(0, 75, 145, 0.5)' },
+  // 'FlexPetro': { background: 'rgba(35, 30, 120, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(255, 200, 0, 0.5)' },
+  // 'GP': { background: 'rgba(0, 160, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Idaza': { background: 'rgba(255, 130, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(255, 190, 60, 0.5)' },
+  // 'Imperial': { background: 'rgba(0, 60, 120, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(237, 28, 36, 0.5)' },
+  // 'Ipiranga': { background: 'rgba(255, 200, 0, 0.9)', border: 'rgba(0, 60, 128, 0.9)', shadowColor: 'rgba(255, 200, 0, 0.7)' },
+  // 'Larco': { background: 'rgba(255, 102, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(0, 75, 145, 0.5)' },
+  // 'Maxxi': { background: 'rgba(255, 130, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'On Petro': { background: 'rgba(255, 102, 0, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'PetroBahia': { background: 'rgba(50, 60, 80, 0.9)', border: 'rgba(255, 221, 0, 0.9)', shadowColor: 'rgba(0, 128, 64, 0.5)' },
+  // 'Pontual': { background: 'rgba(0, 60, 150, 0.9)', border: 'rgba(255, 221, 0, 0.9)' },
+  // 'Potencial': { background: 'rgba(0, 140, 100, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'RDP': { background: 'rgba(0, 75, 145, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(59, 130, 246, 0.5)' },
+  // 'Rede Sol': { background: 'rgba(237, 28, 36, 0.9)', border: 'rgba(255, 221, 0, 0.9)' },
+  // 'Rio Branco': { background: 'rgba(0, 51, 102, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Rodoil': { background: 'rgba(237, 28, 36, 0.9)', border: 'rgba(255, 221, 0, 0.9)', shadowColor: 'rgba(255, 221, 0, 0.5)' },
+  // 'Royal FIC': { background: 'rgba(0, 75, 145, 0.9)', border: 'rgba(255, 170, 0, 0.9)' },
+  // 'Ruff': { background: 'rgba(30, 75, 150, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(80, 120, 220, 0.5)' },
+  // 'SIM': { background: 'rgba(70, 80, 160, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(230, 200, 0, 0.5)' },
+  // 'SP': { background: 'rgba(255, 200, 0, 0.9)', border: 'rgba(75, 85, 99, 0.9)' },
+  // 'Saara': { background: 'rgba(0, 30, 80, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Sada': { background: 'rgba(0, 128, 64, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Santa Lúcia': { background: 'rgba(255, 120, 20, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Setta': { background: 'rgba(255, 200, 0, 0.9)', border: 'rgba(50, 50, 150, 0.9)', shadowColor: 'rgba(237, 28, 36, 0.5)' },
+  // 'Shell': { background: 'rgba(255, 0, 0, 0.9)', border: 'rgba(255, 221, 0, 0.9)', shadowColor: 'rgba(255, 221, 0, 0.7)' },
+  // 'Stang': { background: 'rgba(0, 80, 180, 0.9)', border: 'rgba(255, 255, 255, 0.9)' },
+  // 'Terrana': { background: 'rgba(0, 51, 153, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(237, 28, 36, 0.5)' },
+  // 'Torrão': { background: 'rgba(255, 221, 0, 0.9)', border: 'rgba(0, 51, 153, 0.9)', shadowColor: 'rgba(0, 75, 145, 0.5)' },
+  // 'TotalEnergies': { background: 'rgba(255, 50, 40, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(60, 200, 255, 0.5)' },
+  // 'Vibra': { background: 'rgba(0, 102, 51, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(255, 255, 255, 0.7)' },
+  // 'Vibra Energia': { background: 'rgba(0, 102, 51, 0.9)', border: 'rgba(255, 255, 255, 0.9)', shadowColor: 'rgba(255, 255, 255, 0.7)' },
+};

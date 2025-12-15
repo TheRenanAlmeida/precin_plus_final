@@ -1,10 +1,8 @@
+
 import type { ChangeEvent, RefObject } from 'react';
-// FIX: Import `FuelProduct` to use within this module and re-export it for other modules.
 import type { FuelProduct } from './constants/fuels';
 export type { FuelProduct };
 
-// A constante BRANDS foi removida para permitir que as bandeiras sejam carregadas dinamicamente.
-// export const BRANDS = ['Shell', 'Ipiranga', 'Vibra', 'Branca/Indefinida'] as const;
 // O tipo BrandName agora é uma string para suportar nomes de bandeira dinâmicos.
 export type BrandName = string;
 
@@ -64,7 +62,6 @@ export interface DailyPriceSummary {
   created_at: string;
   dia: string;
   fuel_type: string;
-  // FIX: Update property names to match Supabase query aliases (e.g., avg_price).
   avg_price: number;
   min_price: number;
   max_price: number;
@@ -200,6 +197,7 @@ export interface HistoryDataTableProps {
     visibleColumns: string[];
     getDistributorColor: (name: string) => DistributorStyle;
     selectedTableDistributors: Set<string>;
+    distributorImages: { [key: string]: string | null };
 }
 
 // --- Types for Admin Page ---
@@ -208,4 +206,22 @@ export interface DistributorDBStyle {
   bg_color: string;
   text_color: string;
   shadow_style: string | null;
+}
+
+// --- Estado unificado do Dashboard para compartilhamento ---
+export interface DashboardState {
+    allBrandPrices: { [key in BrandName]?: { [product: string]: number } };
+    allBrandPriceInputs: { [key in BrandName]?: { [product: string]: string } };
+    marketMinPrices: { [product: string]: MinPriceInfo };
+    averagePrices: { [product: string]: number };
+    comparisonMode: ComparisonMode;
+    distributorColors: DistributorColors;
+    distributorImages: { [key: string]: string | null };
+    products: FuelProduct[];
+    allDistributors: string[];
+    selectedDistributors: Set<string>;
+    activeBrand: BrandName;
+    isComparisonMode: boolean;
+    brands: BrandName[];
+    userProfile: UserProfile;
 }

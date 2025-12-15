@@ -270,29 +270,42 @@ export const useDashboardData = (
         }, {} as { [product: string]: MinPriceInfo });
     }, [marketData, selectedDistributors]);
     
+    // CORREÇÃO: Alinhando a lógica da Tabela com a lógica do Gráfico
     const dynamicAveragePrices = useMemo(() => {
-        if (selectedDistributors.size > 0 && selectedDistributors.size === distributors.length) {
-            return unfilteredAveragePrices;
-        }
         return marketData.reduce((acc, { produto, prices }) => {
             const distList = Array.from(selectedDistributors) as string[];
-            const priceList: number[] = [];
-            
-            for (const d of distList) {
+            let pricesToAverage: number[] = [];
+
+            // Se apenas 1 distribuidora está selecionada:
+            // O gráfico mostra a variação interna (todos os preços). A tabela deve fazer o mesmo.
+            if (distList.length === 1) {
+                const d = distList[0];
                 const pList = prices[d];
                 if (pList) {
-                    for (const p of pList) {
-                        if (typeof p === 'number' && isFinite(p)) {
-                            priceList.push(p);
+                    const validPrices = pList.filter(p => typeof p === 'number' && isFinite(p));
+                    pricesToAverage = validPrices;
+                }
+            } 
+            // Se múltiplas distribuidoras estão selecionadas:
+            // O gráfico compara a competitividade (Melhor preço vs Melhor preço).
+            // A tabela deve calcular a média dos PREÇOS MÍNIMOS de cada distribuidora.
+            else {
+                for (const d of distList) {
+                    const pList = prices[d];
+                    if (pList && pList.length > 0) {
+                        const validPrices = pList.filter(p => typeof p === 'number' && isFinite(p));
+                        if (validPrices.length > 0) {
+                            // Pega o MELHOR preço desta distribuidora para compor a média de mercado
+                            pricesToAverage.push(Math.min(...validPrices));
                         }
                     }
                 }
             }
             
-            acc[produto] = calculateIQRAverage(priceList);
+            acc[produto] = calculateIQRAverage(pricesToAverage);
             return acc;
         }, {} as {[product: string]: number});
-    }, [marketData, selectedDistributors, distributors.length, unfilteredAveragePrices]);
+    }, [marketData, selectedDistributors]);
 
     const chartAndSeriesData = useMemo(() => {
         const dataByFuelTypeAndDate: Record<string, Record<string, ProductPrices>> = {};

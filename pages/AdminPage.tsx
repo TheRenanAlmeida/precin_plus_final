@@ -24,16 +24,16 @@ const ColorSwatch: React.FC<{ label: string, color: string, onChange: (color: st
     const inputRef = useRef<HTMLInputElement>(null);
     return (
         <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">{label}</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1 truncate" title={label}>{label}</label>
             <div className="flex items-center gap-2">
                 <div 
-                    className="w-full h-10 rounded-lg border border-slate-600 cursor-pointer shadow-sm relative overflow-hidden group" 
+                    className="w-full h-9 rounded-lg border border-slate-600 cursor-pointer shadow-sm relative overflow-hidden group hover:border-slate-400 transition-colors" 
                     style={{ backgroundColor: color }}
                     onClick={() => inputRef.current?.click()}
-                    title={`Clique para alterar a cor ${label}`}
+                    title={`Clique para alterar a cor`}
                 >
                     <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors flex items-center justify-center">
-                        <span className="text-[10px] font-mono text-white/80 opacity-0 group-hover:opacity-100 uppercase drop-shadow-md">{color}</span>
+                        <span className="text-[9px] font-mono text-white/90 opacity-0 group-hover:opacity-100 uppercase drop-shadow-md">{color}</span>
                     </div>
                     <input ref={inputRef} type="color" value={color} onChange={e => onChange(e.target.value)} className="opacity-0 w-full h-full cursor-pointer absolute inset-0" />
                 </div>
@@ -184,15 +184,23 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
         return () => controller.abort();
     }, []);
 
-    // Função unificada para atualizar cor (sincroniza texto e bolinha, remove sombra)
-    const handleSingleColorUpdate = (distName: string, hexColor: string) => {
+    // Handlers para cores separadas
+    const handleBgColorChange = (distName: string, hexColor: string) => {
         setStyles(prev => ({
             ...prev,
             [distName]: {
                 ...prev[distName],
-                bg_color: hexToRgba(hexColor, 0.95), // Bolinha com leve transparência
-                text_color: hexColor,               // Texto com a cor sólida
-                shadow_style: null                  // Remove qualquer sombra existente
+                bg_color: hexToRgba(hexColor, 0.95) // Mantém o padrão de opacidade para pills
+            }
+        }));
+    };
+
+    const handleTextColorChange = (distName: string, hexColor: string) => {
+        setStyles(prev => ({
+            ...prev,
+            [distName]: {
+                ...prev[distName],
+                text_color: hexColor
             }
         }));
     };
@@ -265,9 +273,11 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
                     </button>
                 </div>
                 
-                <div className="flex border-b border-slate-800">
-                    <button onClick={() => setActiveTab('styles')} className={`px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'styles' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>Estilos</button>
-                    <button onClick={() => setActiveTab('users')} className={`px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'users' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>Usuários</button>
+                <div className="flex border-b border-slate-800 justify-between items-center">
+                    <div className="flex">
+                        <button onClick={() => setActiveTab('styles')} className={`px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'styles' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>Estilos</button>
+                        <button onClick={() => setActiveTab('users')} className={`px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'users' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>Usuários</button>
+                    </div>
                 </div>
 
                 {activeTab === 'styles' && (
@@ -276,7 +286,8 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
                             const style = styles[dist.name];
                             if (!style) return null;
                             
-                            const currentColorHex = style.text_color.startsWith('#') ? style.text_color : rgbaToHex(style.bg_color);
+                            const bgHex = rgbaToHex(style.bg_color);
+                            const textHex = style.text_color.startsWith('#') ? style.text_color : rgbaToHex(style.text_color);
                             
                             return (
                                 <div key={dist.name} className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 space-y-4 flex flex-col h-full">
@@ -288,16 +299,18 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
                                     {/* PREVIEWS DE VISUALIZAÇÃO - SIMPLIFICADOS SEM ÍCONES */}
                                     <div className="space-y-4">
                                         
-                                        {/* 1. Estilo Bolinha + Texto Branco */}
+                                        {/* 1. Estilo 'Pill' (Borda Esquerda + Fundo Escuro) */}
                                         <div className="space-y-1">
                                             <span className="text-[9px] text-slate-500 font-bold uppercase">1. Minhas Cotações (Pill)</span>
                                             <div className="bg-slate-950 p-3 rounded border border-slate-800 flex justify-center">
-                                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 shadow-sm">
-                                                    <div 
-                                                        className="w-3 h-3 rounded-full flex-shrink-0" 
-                                                        style={{ backgroundColor: style.bg_color }}
-                                                    ></div>
-                                                    <span className="text-xs font-bold text-white truncate max-w-[100px]">{dist.name}</span>
+                                                <div 
+                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-r-lg bg-slate-800 border-l-[4px] border-y border-r border-slate-700/50 shadow-sm"
+                                                    style={{ borderLeftColor: style.bg_color }}
+                                                >
+                                                    {dist.image && (
+                                                        <img src={dist.image} alt={dist.name} className="w-4 h-4 object-contain" />
+                                                    )}
+                                                    <span className="text-xs font-bold text-slate-200 truncate max-w-[100px]">{dist.name}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -313,11 +326,17 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
                                         </div>
                                     </div>
 
-                                    <div className="pt-2">
+                                    {/* SELETORES DE COR INDEPENDENTES */}
+                                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
                                         <ColorSwatch 
-                                            label="Cor da Marca" 
-                                            color={currentColorHex} 
-                                            onChange={c => handleSingleColorUpdate(dist.name, c)} 
+                                            label="Fundo (Pill)" 
+                                            color={bgHex} 
+                                            onChange={c => handleBgColorChange(dist.name, c)} 
+                                        />
+                                        <ColorSwatch 
+                                            label="Texto" 
+                                            color={textHex} 
+                                            onChange={c => handleTextColorChange(dist.name, c)} 
                                         />
                                     </div>
 

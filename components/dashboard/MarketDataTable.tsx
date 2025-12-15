@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import type { MarketDataTableProps } from '../../types';
 import { formatPriceSmart } from '../../utils/dataHelpers';
@@ -20,12 +19,12 @@ const MarketDataTable: React.FC<MarketDataTableProps> = ({
     selectedDistributors, 
     highlightedDistributor, 
 }) => {
-  // Dark mode classes - Extremely dense for "single screen" view
-  // 'table-fixed' is crucial here to force columns to fit within the container width
+  // 'pp-th' e 'pp-td' definidos no index.html
+  
+  // Custom header override for tighter spacing in this specific table
   const headerClass = "px-1 py-2 text-center font-bold border-b border-slate-800 text-[10px] uppercase tracking-tighter text-slate-400 bg-slate-900/90 break-words leading-tight align-bottom";
   const cellClass = "px-1 py-2 text-center font-sans tabular-nums text-xs transition-all duration-200 border-b border-slate-800/50";
   
-  // First column (Product) specific style - narrow width
   const stickyColClass = "px-2 py-2 font-bold text-slate-300 text-center bg-slate-900 border-r border-slate-800 text-[10px] uppercase w-12";
 
   return (
@@ -36,15 +35,12 @@ const MarketDataTable: React.FC<MarketDataTableProps> = ({
           </div>
       </div>
       
-      {/* Removed overflow-x-auto to force single screen view */}
       <div className="w-full">
         <table className="w-full text-xs text-left border-collapse font-sans bg-slate-900 table-fixed">
           <thead>
             <tr>
-              {/* Product Column - Fixed narrow width */}
               <th scope="col" className={`${stickyColClass} w-[50px]`}>PROD</th>
               
-              {/* Distributor Columns - Auto distributed due to table-fixed */}
               {distributors.map((distributor) => {
                   const colors = distributorColors[distributor] || distributorColors.DEFAULT;
                   const isDistributorActive = selectedDistributors.has(distributor);
@@ -54,7 +50,7 @@ const MarketDataTable: React.FC<MarketDataTableProps> = ({
                       scope="col" 
                       className={`${headerClass} ${!isDistributorActive ? 'opacity-30 grayscale' : ''} ${highlightedDistributor === distributor ? 'bg-amber-900/20' : ''}`}
                     >
-                        <span style={{ color: colors.background }}>{distributor}</span>
+                        <span style={{ color: colors.border }}>{distributor}</span>
                     </th>
                   );
               })}

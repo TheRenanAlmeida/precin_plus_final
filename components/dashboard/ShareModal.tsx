@@ -1,9 +1,10 @@
 
 import React, { useRef } from 'react';
 import CustomerQuoteTable from './CustomerQuoteTable';
+import SharePreviewTheme from './SharePreviewTheme';
 import type { BrandName, ComparisonMode, DistributorColors, MinPriceInfo, UserProfile } from '../../types';
-// FIX: Imported FuelProduct type to resolve type mismatch for the 'products' prop.
 import type { FuelProduct } from '../../constants/fuels';
+import { formatBrazilDateTime, BRAZIL_TZ_LABEL } from '../../utils/dateUtils';
 
 interface ShareModalProps {
     isOpen: boolean;
@@ -21,7 +22,6 @@ interface ShareModalProps {
     comparisonMode: ComparisonMode;
     distributorColors: DistributorColors;
     distributorImages: { [key: string]: string | null };
-    // FIX: Changed type from string[] to FuelProduct[] to match the expected type in CustomerQuoteTable.
     products: FuelProduct[];
     allDistributors: string[];
     selectedDistributors: Set<string>;
@@ -29,6 +29,7 @@ interface ShareModalProps {
     isComparisonMode: boolean;
     brands: BrandName[];
     userProfile: UserProfile;
+    selectedBase: string;
 }
 
 const ShareModal: React.FC<ShareModalProps> = ({ 
@@ -36,26 +37,81 @@ const ShareModal: React.FC<ShareModalProps> = ({
     allBrandPrices, allBrandPriceInputs, marketMinPrices, averagePrices, 
     comparisonMode, distributorColors, distributorImages, products, 
     allDistributors, selectedDistributors, activeBrand, isComparisonMode, brands,
-    userProfile
+    userProfile, selectedBase
 }) => {
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const { handleDownloadJPG, handleWebShare } = shareActions;
     
     const ShareHeader = () => {
-        const formattedDateTime = new Intl.DateTimeFormat('pt-BR', {
-            weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            timeZone: 'America/Sao_Paulo',
-        }).format(new Date());
+        const formattedDateTime = formatBrazilDateTime(new Date());
 
         return (
-            <div className="mb-6 flex justify-between items-start border-b border-slate-700 pb-4">
+            <div className="w-full mb-2 flex justify-between items-start border-b border-slate-700 pb-4">
                 <img src="https://i.imgur.com/scv57na.png" alt="precin+" className="h-14 w-auto" />
                 <div className="text-right">
-                    <p className="font-semibold text-sm text-slate-300 tabular-nums">{formattedDateTime}</p>
-                    <p className="text-xs text-slate-500">Horário de Brasília</p>
+                    <p className="font-semibold text-sm text-slate-300 tabular-nums capitalize">{formattedDateTime}</p>
+                    <p className="text-xs text-slate-500">{BRAZIL_TZ_LABEL}</p>
                 </div>
             </div>
+        );
+    };
+    
+    // Conteúdo interno extraído para evitar duplicação
+    const renderContent = () => {
+        const brandStyle = distributorColors[activeBrand] || distributorColors.DEFAULT;
+        const activeBrandName = activeBrand === 'Branca/Indefinida' ? 'Bandeira Branca' : activeBrand;
+
+        return (
+            <>
+                <ShareHeader />
+                
+                <div className="w-full flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wide">
+                            Cotações do Dia:
+                        </h3>
+                        {activeBrand && (
+                            <span 
+                                className="text-sm font-extrabold uppercase tracking-wide"
+                                style={{ color: brandStyle.border }} 
+                            >
+                                {activeBrandName}
+                            </span>
+                        )}
+                    </div>
+                    <span className="inline-flex items-center justify-center px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 rounded-full">
+                        <span className="inline-block translate-y-[-6px]">
+                            {selectedBase}
+                        </span>
+                    </span>
+                </div>
+
+                <div className="w-full space-y-8">
+                    <CustomerQuoteTable
+                        brands={brands}
+                        allBrandPrices={allBrandPrices}
+                        allBrandPriceInputs={allBrandPriceInputs}
+                        handleBrandPriceChange={() => {}}
+                        onOpenShareModal={() => {}}
+                        onSaveQuote={() => {}}
+                        isSaving={false}
+                        isSharing={false}
+                        quoteTableRef={null}
+                        isSharePreview={true}
+                        marketMinPrices={marketMinPrices}
+                        averagePrices={averagePrices}
+                        distributorColors={distributorColors}
+                        distributorImages={distributorImages}
+                        products={products}
+                        selectedDistributors={selectedDistributors}
+                        isComparisonMode={isComparisonMode}
+                        comparisonMode={comparisonMode}
+                        isSaveSuccess={false}
+                        activeBrand={activeBrand}
+                        onActiveBrandChange={() => {}}
+                    />
+                </div>
+            </>
         );
     };
     
@@ -72,70 +128,21 @@ const ShareModal: React.FC<ShareModalProps> = ({
                 </header>
                 
                 <div className="flex-grow p-6 bg-slate-950 overflow-auto custom-scrollbar">
-                    {/* Off-screen container for clean rendering */}
+                    {/* Container Off-screen para geração da imagem (html2canvas) */}
                     <div
-                      className="fixed -left-[9999px] top-0 p-8 bg-slate-900"
+                      className="absolute -left-[9999px] top-0 p-8 bg-slate-900"
                       ref={previewContainerRef}
                     >
-                      <div className="mx-auto bg-slate-900 rounded-2xl shadow-2xl p-8 w-[1200px] border border-slate-800">
-                        <ShareHeader />
-                        <div className="space-y-8">
-                              <CustomerQuoteTable
-                                brands={brands}
-                                allBrandPrices={allBrandPrices}
-                                allBrandPriceInputs={allBrandPriceInputs}
-                                handleBrandPriceChange={() => {}}
-                                onOpenShareModal={() => {}}
-                                onSaveQuote={() => {}}
-                                isSaving={false}
-                                isSharing={false}
-                                quoteTableRef={null}
-                                isSharePreview={true}
-                                marketMinPrices={marketMinPrices}
-                                averagePrices={averagePrices}
-                                distributorColors={distributorColors}
-                                distributorImages={distributorImages}
-                                products={products}
-                                selectedDistributors={selectedDistributors}
-                                isComparisonMode={isComparisonMode}
-                                comparisonMode={comparisonMode}
-                                isSaveSuccess={false}
-                                activeBrand={activeBrand}
-                                onActiveBrandChange={() => {}}
-                              />
-                        </div>
-                      </div>
+                      <SharePreviewTheme>
+                          {renderContent()}
+                      </SharePreviewTheme>
                     </div>
-                    {/* Visible container for user preview */}
-                    <div className="p-2 sm:p-6 bg-slate-950">
-                      <div className="mx-auto bg-slate-900 rounded-2xl shadow-2xl p-4 sm:p-6 max-w-[1200px] border border-slate-800">
-                        <ShareHeader />
-                        <div className="space-y-8">
-                                <CustomerQuoteTable
-                                    brands={brands}
-                                    allBrandPrices={allBrandPrices}
-                                    allBrandPriceInputs={allBrandPriceInputs}
-                                    handleBrandPriceChange={() => {}}
-                                    onOpenShareModal={() => {}}
-                                    onSaveQuote={() => {}}
-                                    isSaving={false}
-                                    isSharing={false}
-                                    quoteTableRef={null}
-                                    isSharePreview={true}
-                                    marketMinPrices={marketMinPrices}
-                                    averagePrices={averagePrices}
-                                    distributorColors={distributorColors}
-                                    distributorImages={distributorImages}
-                                    products={products}
-                                    selectedDistributors={selectedDistributors}
-                                    isComparisonMode={isComparisonMode}
-                                    comparisonMode={comparisonMode}
-                                    isSaveSuccess={false}
-                                    activeBrand={activeBrand}
-                                    onActiveBrandChange={() => {}}
-                                />
-                        </div>
-                      </div>
+
+                    {/* Container Visível para o usuário (Preview) */}
+                    <div className="p-2 sm:p-4 flex justify-center">
+                        <SharePreviewTheme>
+                            {renderContent()}
+                        </SharePreviewTheme>
                     </div>
                 </div>
 

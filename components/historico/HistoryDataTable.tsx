@@ -1,8 +1,8 @@
 
-
 import React from 'react';
 import type { HistoryDataTableProps } from '../../types';
 import { formatPrice, formatDeltaForDisplay, formatPriceDifferenceForDisplay } from '../../utils/dataHelpers';
+import { getOriginalBrandName } from '../../utils/styleManager';
 
 const RenderDelta: React.FC<{ delta: number | null }> = ({ delta }) => {
     const data = formatDeltaForDisplay(delta);
@@ -42,6 +42,7 @@ const HistoryDataTable: React.FC<HistoryDataTableProps> = ({
     visibleColumns,
     getDistributorColor,
     selectedTableDistributors,
+    distributorImages,
 }) => {
 
     return (
@@ -74,6 +75,9 @@ const HistoryDataTable: React.FC<HistoryDataTableProps> = ({
                             {periodRow.distributorPrices.filter(dist => selectedTableDistributors.has(dist.name)).map((distributorPriceRow) => {
                                 const { name, price: priceData } = distributorPriceRow;
                                 const color = getDistributorColor(name);
+                                const originalName = getOriginalBrandName(name);
+                                const imageUrl = distributorImages[originalName];
+                                
                                 const userPrice = priceData.value;
                                 const diffMin = userPrice !== null && periodRow.market.min.value !== null ? userPrice - periodRow.market.min.value : null;
                                 const diffAvg = userPrice !== null && periodRow.market.avg.value !== null ? userPrice - periodRow.market.avg.value : null;
@@ -84,11 +88,20 @@ const HistoryDataTable: React.FC<HistoryDataTableProps> = ({
                                         <td className="px-3 py-2 sticky left-0 bg-slate-900 hover:bg-slate-900/0 z-10 border-r border-slate-800"></td> 
                                         <th scope="row" className="px-3 py-2 text-left border-r border-slate-800">
                                             <div className="inline-flex items-center gap-2">
-                                                <div 
-                                                    className="h-2 w-2 rounded-full flex-shrink-0"
-                                                    style={{ backgroundColor: color.background }}
-                                                />
-                                                <span className="text-sm font-medium text-slate-300 truncate max-w-[120px]">{name}</span>
+                                                {imageUrl ? (
+                                                    <img src={imageUrl} alt={name} className="w-4 h-4 object-contain" />
+                                                ) : (
+                                                    <div 
+                                                        className="h-2 w-2 rounded-full flex-shrink-0"
+                                                        style={{ backgroundColor: color.background }}
+                                                    />
+                                                )}
+                                                <span 
+                                                    className="text-sm font-bold truncate max-w-[120px]"
+                                                    style={{ color: color.background }}
+                                                >
+                                                    {name}
+                                                </span>
                                             </div>
                                         </th>
                                         {visibleColumns.includes('seu_preco') && (<><td className="px-2 py-2 text-center text-xs font-sans tabular-nums font-bold text-emerald-400 bg-emerald-950/10">{formatPrice(priceData.value)}</td><td className="px-2 py-2 text-center border-r border-slate-800"><RenderDelta delta={priceData.delta} /></td></>)}

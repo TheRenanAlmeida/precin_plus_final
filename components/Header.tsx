@@ -14,12 +14,11 @@ const Header: React.FC<HeaderProps> = ({ userProfile, children, className }) => 
         await supabase.auth.signOut();
     };
     
-    // Se className for fornecido, usa ele. Se não, usa o verde padrão.
+    // Se className for fornecido, usa ele. Se não, usa a cor da marca definida no tailwind.config (brand).
     // Dashboard sobrescreve a cor para slate-950.
-    // REMOVIDO: 'sticky top-0' para que o header pare de seguir a rolagem.
     const headerClass = className 
         ? `shadow-md relative z-50 ${className}`
-        : "bg-[#16a34a] shadow-md relative z-50";
+        : "bg-brand shadow-md relative z-50";
 
     return (
         <header className={headerClass}>

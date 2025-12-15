@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { DistributorStyle } from '../../types';
 
@@ -33,18 +34,15 @@ const MarketDistributorsSection: React.FC<MarketDistributorsSectionProps> = ({
                 <button 
                     key={distName}
                     onClick={() => handleSelectMarketDistributor(distName)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold transition-colors whitespace-nowrap
+                    style={{ borderLeftColor: style.background }}
+                    className={`flex items-center justify-center px-3 py-1.5 rounded-r-lg border-y border-r border-l-[4px] text-sm font-semibold transition-all shadow-sm whitespace-nowrap
                         ${isSelected
-                            ? 'bg-slate-700 text-emerald-400 border-slate-600 ring-2 ring-emerald-500'
-                            : 'bg-slate-800/50 text-slate-300 border-slate-700/50 hover:bg-slate-800 hover:text-slate-100 hover:border-slate-600'
+                            ? 'bg-slate-700 text-emerald-400 border-slate-600'
+                            : 'bg-slate-800 text-slate-300 border-slate-700/50 hover:bg-slate-700 hover:text-slate-100 hover:border-slate-600'
                         }
                     `}
                 >
-                    <div 
-                        className="h-2 w-2 rounded-full" 
-                        style={{ backgroundColor: style.background }} 
-                    />
-                    <span>{distName}</span>
+                    <span className="truncate">{distName}</span>
                 </button>
             )})}
         </div>

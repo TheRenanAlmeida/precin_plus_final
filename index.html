@@ -11,6 +11,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style type="text/tailwindcss">
+      @layer components {
+        /* Padrão de Cabeçalho de Tabela */
+        .pp-th {
+          @apply px-3 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider bg-slate-900/95 border-b border-slate-700 whitespace-nowrap align-middle;
+        }
+        
+        /* Padrão de Célula de Tabela */
+        .pp-td {
+          @apply px-2 py-2.5 text-sm text-slate-200 border-b border-slate-800 whitespace-nowrap tabular-nums font-sans font-bold;
+        }
+
+        /* Variação de Célula (Alinhamento Esquerda/Texto) */
+        .pp-td-text {
+          @apply px-3 py-2.5 text-sm text-slate-200 border-b border-slate-800 whitespace-nowrap tabular-nums font-sans font-semibold text-left truncate;
+        }
+
+        /* Badges de Variação */
+        .pp-badge {
+          @apply px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border;
+        }
+      }
+    </style>
     <style>
       /* Hide arrows from number input */
       input::-webkit-outer-spin-button,
@@ -110,6 +133,9 @@
       tailwind.config = {
         theme: {
           extend: {
+            colors: {
+              brand: '#16a34a',
+            },
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
               logo: ['Pacifico', 'cursive'],
@@ -129,8 +155,14 @@
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
     "url": "https://aistudiocdn.com/url@^0.11.4",
     "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.76.1",
-    "html2canvas": "https://cdn.skypack.dev/html2canvas@1.4.1",
-    "jspdf": "https://cdn.skypack.dev/jspdf@2.5.1"
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "globals": "https://esm.sh/globals@^16.5.0",
+    "eslint-plugin-unused-imports": "https://esm.sh/eslint-plugin-unused-imports@^4.3.0",
+    "typescript-eslint": "https://esm.sh/typescript-eslint@^8.49.0",
+    "eslint-plugin-react-refresh": "https://esm.sh/eslint-plugin-react-refresh@^0.4.24",
+    "@eslint/js": "https://esm.sh/@eslint/js@^9.39.1",
+    "eslint-plugin-react-hooks": "https://esm.sh/eslint-plugin-react-hooks@^7.0.1"
   }
 }
 </script>

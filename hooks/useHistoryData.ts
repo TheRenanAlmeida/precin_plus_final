@@ -1,3 +1,4 @@
+
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile, ChartSeries, HistoryRow, DistributorStyle, ProductPrices, DistributorDBStyle } from '../types';
@@ -123,16 +124,37 @@ export const useHistoryData = (
             const marketHistoryRows: HistoryRow[] = [];
             for (const period in groupedMarketPrices) {
                 const pricesByDistributor = groupedMarketPrices[period];
-                const allPricesFlat = Object.values(pricesByDistributor).flat().filter((p): p is number => typeof p === 'number' && isFinite(p));
                 
-                if (allPricesFlat.length > 0) {
+                // LÓGICA CORRIGIDA PARA IGUALAR AO DASHBOARD:
+                // 1. Identifica quais distribuidoras têm preço neste dia
+                const activeDistributors = Object.keys(pricesByDistributor);
+                let pricesForAvg: number[] = [];
+                let allPricesForMinMax: number[] = [];
+
+                if (activeDistributors.length === 0) continue;
+
+                // Coleta todos os preços para cálculo de min/max absoluto
+                allPricesForMinMax = Object.values(pricesByDistributor).flat().filter((p): p is number => typeof p === 'number' && isFinite(p));
+
+                if (activeDistributors.length === 1) {
+                    // Se só tem 1 distribuidora no dia, a média é a média interna dela (variação da própria marca)
+                    pricesForAvg = pricesByDistributor[activeDistributors[0]].filter((p): p is number => typeof p === 'number' && isFinite(p));
+                } else {
+                    // Se tem várias distribuidoras, pega o MELHOR PREÇO de cada uma para compor a média competitiva
+                    pricesForAvg = activeDistributors.map(d => {
+                        const pList = pricesByDistributor[d];
+                        return Math.min(...pList.filter((p): p is number => typeof p === 'number' && isFinite(p)));
+                    });
+                }
+                
+                if (allPricesForMinMax.length > 0) {
                     marketHistoryRows.push({
                         period,
                         distribuidora: null,
                         fuel_type: selectedFuelType,
                         distribuidora_avg_price: null,
-                        market_min: Math.min(...allPricesFlat),
-                        market_avg: calculateIQRAverage(allPricesFlat),
+                        market_min: Math.min(...allPricesForMinMax),
+                        market_avg: calculateIQRAverage(pricesForAvg), // Usa a lógica competitiva corrigida
                         market_max: calculateCustomMaxPrice(pricesByDistributor),
                     });
                 }

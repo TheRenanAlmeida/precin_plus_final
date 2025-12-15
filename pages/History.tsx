@@ -391,6 +391,7 @@ const History: React.FC<HistoryProps> = ({
                                 visibleColumns={visibleColumns}
                                 getDistributorColor={getDistributorColor}
                                 selectedTableDistributors={selectedTableDistributors}
+                                distributorImages={distributorImages}
                             />
                         )}
                     </>

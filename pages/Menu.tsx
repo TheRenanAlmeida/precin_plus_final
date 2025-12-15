@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import { UserProfile, BandeiraBasePair, DistributorStyle, DistributorDBStyle } from '../types';
@@ -359,27 +358,36 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
         return <LoadingScreen />;
     }
     
-    const renderFormContainer = (distributor: BandeiraBasePair) => (
-        <div className="rounded-lg overflow-hidden border border-slate-700 mt-4">
-             <div className="p-4 bg-slate-800">
-                <h2 className="text-lg font-bold text-slate-100">
-                    Cotação: {distributor.bandeira}
-                </h2>
-                <p className="text-sm text-slate-400">
-                    Insira as cotações para a Base {distributor.base}.
-                </p>
+    const renderFormContainer = (distributor: BandeiraBasePair) => {
+        const style = distributorColors[distributor.bandeira] || distributorColors.DEFAULT;
+        
+        return (
+            <div 
+                className="rounded-r-xl overflow-hidden border-y border-r border-l-[6px] border-slate-700 mt-4 shadow-lg transition-all animate-fade-in"
+                style={{ borderLeftColor: style.background }}
+            >
+                 <div className="p-4 bg-slate-800 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-100">
+                            Cotação: <span style={{ color: style.background }}>{distributor.bandeira}</span>
+                        </h2>
+                        <p className="text-sm text-slate-400">
+                            Insira as cotações para a Base {distributor.base}.
+                        </p>
+                    </div>
+                </div>
+                <div className="p-6 bg-slate-900/50">
+                    <QuoteInputForm 
+                        distributor={distributor} 
+                        initialPrices={pendingQuotes[selectedDistributorKey] || {}}
+                        onPriceChange={(product, value) => handlePendingPriceChange(selectedDistributorKey, product, value)}
+                        onSubmit={handleQuoteSubmit} 
+                        onCancel={() => setSelectedDistributorToQuote(null)} 
+                    />
+                </div>
             </div>
-            <div className="p-6 bg-slate-900/50">
-                <QuoteInputForm 
-                    distributor={distributor} 
-                    initialPrices={pendingQuotes[selectedDistributorKey] || {}}
-                    onPriceChange={(product, value) => handlePendingPriceChange(selectedDistributorKey, product, value)}
-                    onSubmit={handleQuoteSubmit} 
-                    onCancel={() => setSelectedDistributorToQuote(null)} 
-                />
-            </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200">

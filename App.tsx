@@ -7,7 +7,7 @@ import { UserProfile, BandeiraBasePair } from './types';
 // Componentes
 import LoadingScreen from './components/LoadingScreen';
 import ErrorScreen from './components/ErrorScreen';
-import GlobalWatermark from './components/GlobalWatermark'; // Importação do componente global
+import { TooltipProvider } from './components/ui/tooltip'; 
 
 // Páginas do fluxo
 import AuthPage from './pages/AuthPage';
@@ -17,16 +17,15 @@ import DashboardPage from './pages/DashboardPage';
 import Menu from './pages/Menu';
 import History from './pages/History';
 import AdminPage from './pages/AdminPage';
+import ContractsPage from './pages/Contracts'; 
 
-type AppView = 'menu' | 'dashboard' | 'history' | 'admin';
+type AppView = 'menu' | 'dashboard' | 'history' | 'admin' | 'contracts';
 
-// Chaves de cache para o localStorage
-const FUEL_CACHE_KEY = 'history_fuel';
-const BASE_CACHE_KEY = 'history_base';
-const START_DATE_CACHE_KEY = 'history_start_date';
-const END_DATE_CACHE_KEY = 'history_end_date';
+const FUEL_CACHE_KEY = 'history_fuel_v2';
+const BASE_CACHE_KEY = 'history_base_v2';
+const START_DATE_CACHE_KEY = 'history_start_date_v2';
+const END_DATE_CACHE_KEY = 'history_end_date_v2';
 
-// Tipagem para o retorno da query de perfil do usuário
 type UserProfileResponse = {
     id: string;
     nome: string;
@@ -34,28 +33,22 @@ type UserProfileResponse = {
     cnpj: string | null;
     telefone: string | null;
     credencial: string;
-    preferencias: any; // `any` para validação segura em tempo de execução
+    preferencias: any; 
     atualizado_em?: string;
 };
 
-// Adiciona a tipagem para a query de bases
-type BaseRecord = { Base: string | null };
-
-/**
- * Extrai uma mensagem de erro legível de qualquer tipo de exceção.
- * @param error O erro capturado.
- * @returns Uma string com a mensagem de erro.
- */
 const getErrorMessage = (error: unknown): string => {
+    if (!error) return 'Erro desconhecido.';
+    
     if (error instanceof Error) {
         return error.message;
     }
     if (typeof error === 'string') {
         return error;
     }
-    if (error && typeof error === 'object') {
+    if (typeof error === 'object') {
         const anyError = error as any;
-        // Se a mensagem for um objeto, tenta stringify, senão usa direto
+        // Tenta extrair mensagem de campos comuns de erro
         if (anyError.message) {
             if (typeof anyError.message === 'object') {
                 try { return JSON.stringify(anyError.message); } catch { return String(anyError.message); }
@@ -64,12 +57,17 @@ const getErrorMessage = (error: unknown): string => {
         }
         if (anyError.error_description) return String(anyError.error_description);
         if (anyError.details) return String(anyError.details);
+        if (anyError.msg) return String(anyError.msg);
+        
+        // Se for um objeto genérico, tenta JSON stringify
+        try {
+            const json = JSON.stringify(error);
+            if (json !== '{}') return json;
+        } catch {}
     }
-    try {
-        return JSON.stringify(error);
-    } catch {
-        return 'Ocorreu um erro desconhecido e não foi possível exibi-lo.';
-    }
+    
+    // Fallback final
+    return String(error);
 };
 
 
@@ -80,7 +78,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [startupError, setStartupError] = useState<string | null>(null);
 
-  // --- Lógica de Proteção contra Cópia ---
   useEffect(() => {
     const prevent = (e: Event) => e.preventDefault();
     const events: (keyof DocumentEventMap)[] = ['copy', 'cut', 'paste', 'contextmenu', 'selectstart'];
@@ -94,7 +91,6 @@ export default function App() {
     };
   }, []);
 
-  // --- Lógica de Persistência do Histórico ---
   const getCachedValue = <T extends string>(key: string, defaultValue: T): T => {
     try {
         const cached = localStorage.getItem(key);
@@ -113,9 +109,9 @@ export default function App() {
     }
   };
 
-  const thirtyDaysAgo = () => {
+  const ninetyDaysAgo = () => {
       const date = new Date();
-      date.setDate(date.getDate() - 30);
+      date.setDate(date.getDate() - 90);
       return date.toISOString().split('T')[0];
   };
 
@@ -124,7 +120,7 @@ export default function App() {
   const [availableBases, setAvailableBases] = useState<string[]>([]);
   const [historySelectedFuelType, setHistorySelectedFuelType] = useState<string>(() => getCachedValue(FUEL_CACHE_KEY, 'Gasolina Comum'));
   const [selectedBase, setSelectedBase] = useState<string>(() => getCachedValue(BASE_CACHE_KEY, ''));
-  const [historyStartDate, setHistoryStartDate] = useState<string>(() => getCachedValue(START_DATE_CACHE_KEY, thirtyDaysAgo()));
+  const [historyStartDate, setHistoryStartDate] = useState<string>(() => getCachedValue(START_DATE_CACHE_KEY, ninetyDaysAgo()));
   const [historyEndDate, setHistoryEndDate] = useState<string>(() => getCachedValue(END_DATE_CACHE_KEY, today()));
 
   const handleSetHistoryFuel = (fuel: string) => {
@@ -143,11 +139,11 @@ export default function App() {
       setCachedValue(END_DATE_CACHE_KEY, date);
       setHistoryEndDate(date);
   };
-  // --- Fim da Lógica de Persistência ---
 
   const goToMenu = () => setCurrentView('menu');
   const goToDashboard = () => setCurrentView('dashboard');
   const goToHistory = () => setCurrentView('history');
+  const goToContracts = () => setCurrentView('contracts');
   const goToAdmin = () => setCurrentView('admin');
 
   const processAndSetProfile = (data: UserProfileResponse) => {
@@ -161,7 +157,6 @@ export default function App() {
           credencial: data.credencial || 'usuario',
           profile_complete: !!(data.cnpj && data.telefone),
           onboarding_complete: hasPreferences,
-          // FIX: Cast `data.preferencias` to ensure it matches the `BandeiraBasePair[]` type, preventing downstream type errors.
           preferencias: hasPreferences ? (data.preferencias as BandeiraBasePair[]) : [],
           atualizado_em: data.atualizado_em,
       };
@@ -178,13 +173,13 @@ export default function App() {
             .eq('id', user.id)
             .single<UserProfileResponse>();
 
-        if (error && error.code !== 'PGRST116') { // Ignora erro de "perfil não encontrado" por enquanto
+        if (error && error.code !== 'PGRST116') {
             throw error;
         }
 
         if (data) {
             processAndSetProfile(data);
-        } else { // Perfil não encontrado, tenta criar
+        } else {
             console.warn("Perfil não encontrado. Acionando criação de perfil via RPC.");
             
             const userName = user.user_metadata.name || user.email || 'Novo Usuário';
@@ -200,7 +195,6 @@ export default function App() {
 
             if (rpcError) throw rpcError;
 
-            // Perfil criado, busca novamente
             const { data: finalData, error: finalError } = await supabase
                 .from('pplus_users')
                 .select('id, nome, email, cnpj, telefone, credencial, preferencias, atualizado_em')
@@ -246,12 +240,11 @@ export default function App() {
     const controller = new AbortController();
 
     const fetchAndSetBases = async () => {
-        if (!userProfile) return; // FIX: Prevent running if profile is not yet loaded.
+        if (!userProfile) return;
         
         let uniqueBases: string[] = [];
         
         if (userProfile.credencial === 'administrador') {
-            // Admin: busca todas as bases da tabela de mestres 'Precin - Bases'
             const { data, error } = await supabase
                 .from('Precin - Bases')
                 .select('"Nome da Base"')
@@ -265,21 +258,18 @@ export default function App() {
                 const errorMessage = getErrorMessage(error);
                 setStartupError(`Não foi possível carregar as bases de dados: ${errorMessage}`);
             } else if (data) {
-                // FIX: Explicitly cast `data` to the expected type to resolve the "unknown[] is not assignable to string[]" error, which can occur with complex type inference from database clients.
                 uniqueBases = [...new Set((data as { "Nome da Base": string }[])
                     .map(item => item["Nome da Base"])
                     .filter((base): base is string => typeof base === 'string' && base.length > 0))
                 ].sort();
             }
         } else {
-            // Usuário Padrão: usa as bases de suas preferências
             const allBases: string[] = userProfile.preferencias.map(pref => pref.base);
             uniqueBases = Array.from(new Set(allBases)).sort();
         }
         
         setAvailableBases(uniqueBases);
 
-        // Gerencia a base selecionada com base nas bases disponíveis
         const currentSelectedBase = getCachedValue(BASE_CACHE_KEY, '');
         if (uniqueBases.length > 0 && (!currentSelectedBase || !uniqueBases.includes(currentSelectedBase))) {
             handleSetSelectedBase(uniqueBases[0]);
@@ -293,7 +283,6 @@ export default function App() {
     return () => controller.abort();
   }, [userProfile]);
 
-  // Renderização da Aplicação
   
   if (startupError) {
       return <ErrorScreen 
@@ -311,8 +300,6 @@ export default function App() {
     return <AuthPage />; 
   }
 
-  // --- Wrapper principal do conteúdo logado ---
-  // Inclui a Marca D'água Global aqui para estar presente em todas as telas
   const renderAppContent = () => {
     if (userProfile) {
         if (!userProfile.profile_complete) {
@@ -322,7 +309,7 @@ export default function App() {
             return <OnboardingSetupPage userProfile={userProfile} onOnboardingComplete={() => fetchUserProfile(session.user)} />;
         }
     
-        const menuProps = { goToDashboard, goToHistory, goToAdmin, userProfile };
+        const menuProps = { goToDashboard, goToHistory, goToContracts, goToAdmin, userProfile };
     
         switch (currentView) {
           case 'menu':
@@ -348,10 +335,20 @@ export default function App() {
                 setStartDate={handleSetHistoryStartDate}
                 endDate={historyEndDate}
                 setEndDate={handleSetHistoryEndDate}
+                goToContracts={goToContracts} // Added navigation prop
+            />;
+          case 'contracts':
+            return <ContractsPage 
+                userProfile={userProfile} 
+                goBack={goToMenu} 
+                goToDashboard={goToDashboard}
+                goToHistory={goToHistory}
+                goToAdmin={goToAdmin}
+                goToContracts={goToContracts}
             />;
           case 'admin':
             if (userProfile.credencial !== 'administrador') {
-                setCurrentView('menu'); // Redirect non-admins
+                setCurrentView('menu');
                 return <Menu {...menuProps} />;
             }
             return <AdminPage userProfile={userProfile} goBack={goToMenu} />;
@@ -363,9 +360,12 @@ export default function App() {
   };
 
   return (
-    <>
-      <GlobalWatermark userProfile={userProfile} />
-      {renderAppContent()}
-    </>
+    <TooltipProvider>
+      <div className="relative min-h-screen w-full bg-slate-950">
+          <div className="relative z-0">
+              {renderAppContent()}
+          </div>
+      </div>
+    </TooltipProvider>
   );
 }

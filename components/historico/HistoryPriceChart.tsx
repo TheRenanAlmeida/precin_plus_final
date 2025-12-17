@@ -1,8 +1,8 @@
 
-
 import React, { useRef, useEffect, useMemo } from 'react';
 import type { HistoryPriceChartProps } from '../../types';
 import { formatPrice } from '../../utils/dataHelpers';
+import PriceWatermarkedSection from '../PriceWatermarkedSection';
 
 declare const echarts: any | undefined;
 
@@ -24,6 +24,7 @@ const generateEChartsOptions = (
   seriesConfig: HistoryPriceChartProps['seriesConfig'],
   defaultZoom: { startValue?: number; endValue?: number }
 ) => {
+  // ... (código existente da função generateEChartsOptions permanece inalterado) ...
   const visibleSeriesConfig = seriesConfig.filter(s => s.isVisible);
   const allLabels = chartData.labels;
   const timestamps = allLabels.map(l => new Date(l + 'T00:00:00Z').getTime());
@@ -50,7 +51,6 @@ const generateEChartsOptions = (
       return max !== null && avg !== null ? max - avg : null;
     });
   
-    // BASE do stack: linha "virtual" no mínimo (sem cor visível)
     echartsSeries.push({
       name: '_min_base_internal',
       type: 'line',
@@ -65,8 +65,6 @@ const generateEChartsOptions = (
       progressiveThreshold: 3000,
     });
   
-    // Faixa MÍNIMO → MÉDIA (azul/ciano neon)
-    // Quanto mais longe da média (perto do mínimo), mais forte o azul
     echartsSeries.push({
       name: '_green_band_internal',
       type: 'line',
@@ -82,8 +80,8 @@ const generateEChartsOptions = (
           x2: 0,
           y2: 1,
           colorStops: [
-            { offset: 0, color: 'rgba(56, 189, 248, 0.05)' }, // perto da média (mais claro)
-            { offset: 1, color: 'rgba(34, 211, 238, 0.7)' },  // mais longe (min), azul neon forte
+            { offset: 0, color: 'rgba(56, 189, 248, 0.05)' }, 
+            { offset: 1, color: 'rgba(34, 211, 238, 0.7)' },  
           ],
         },
         shadowColor: 'rgba(34, 211, 238, 0.35)',
@@ -95,8 +93,6 @@ const generateEChartsOptions = (
       progressiveThreshold: 3000,
     });
   
-    // Faixa MÉDIA → MÁXIMO (vermelho neon)
-    // Quanto mais longe da média (perto do máximo), mais forte o vermelho
     echartsSeries.push({
       name: '_red_band_internal',
       type: 'line',
@@ -112,8 +108,8 @@ const generateEChartsOptions = (
           x2: 0,
           y2: 1,
           colorStops: [
-            { offset: 0, color: 'rgba(248, 113, 113, 0.8)' }, // topo (max) vermelho neon forte
-            { offset: 1, color: 'rgba(248, 113, 113, 0.06)' }, // perto da média (mais claro)
+            { offset: 0, color: 'rgba(248, 113, 113, 0.8)' }, 
+            { offset: 1, color: 'rgba(248, 113, 113, 0.06)' }, 
           ],
         },
         shadowColor: 'rgba(248, 113, 113, 0.4)',
@@ -125,12 +121,11 @@ const generateEChartsOptions = (
       progressiveThreshold: 3000,
     });
   
-    // Linha da MÉDIA do mercado – branca com glow
     echartsSeries.push({
       name: 'Variação do Mercado',
       type: 'line',
       data: timestamps.map((t, i) => [t, avgData[i]]),
-      itemStyle: { color: '#f9fafb' }, // quase branco
+      itemStyle: { color: '#f9fafb' }, 
       lineStyle: {
         width: 2.6,
         color: '#f9fafb',
@@ -216,20 +211,19 @@ const generateEChartsOptions = (
     legend: { show: false },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
     
-    // Configuração de Eixos para Dark Mode
     xAxis: [
       {
         type: 'time',
         boundaryGap: false,
         axisLabel: {
-          color: '#94a3b8', // slate-400
+          color: '#94a3b8', 
           rotate: 0,
           formatter: xAxisFormatter,
           interval: 0,
           showMinLabel: true,
           showMaxLabel: true,
           rich: {
-            day: { fontSize: 10, color: '#64748b' } // slate-500
+            day: { fontSize: 10, color: '#64748b' } 
           },
           margin: 12
         },
@@ -237,14 +231,14 @@ const generateEChartsOptions = (
           show: true,
           alignWithLabel: true,
           interval: 0,
-          lineStyle: { color: '#334155' } // slate-700
+          lineStyle: { color: '#334155' } 
         },
         axisLine: {
-            lineStyle: { color: '#334155' } // slate-700
+            lineStyle: { color: '#334155' } 
         },
         splitLine: {
           show: true,
-          lineStyle: { color: '#1e293b', type: 'dashed' }, // slate-800
+          lineStyle: { color: '#1e293b', type: 'dashed' }, 
           interval: (index: number) => {
             const label = allLabels[index];
             if (!label) return false;
@@ -260,11 +254,11 @@ const generateEChartsOptions = (
       min: (v: { min: number }) => (v.min > 0 ? v.min - 0.01 : 0),
       axisLabel: { 
           formatter: (v: number) => formatPrice(v),
-          color: '#94a3b8', // slate-400
+          color: '#94a3b8', 
           fontSize: 11
       },
       splitLine: {
-          lineStyle: { color: '#1e293b' } // slate-800
+          lineStyle: { color: '#1e293b' } 
       }
     },
 
@@ -279,7 +273,7 @@ const generateEChartsOptions = (
         startValue: defaultZoom.startValue,
         endValue: defaultZoom.endValue,
         minSpan,
-        handleStyle: { color: '#10b981' }, // emerald-500
+        handleStyle: { color: '#10b981' }, 
         textStyle: { color: '#94a3b8' },
         borderColor: '#334155',
         fillerColor: 'rgba(16, 185, 129, 0.2)',
@@ -295,13 +289,13 @@ const generateEChartsOptions = (
       confine: true,
       enterable: true,
       transitionDuration: 0.1,
-      backgroundColor: '#0f172a', // slate-950
-      borderColor: '#1e293b', // slate-800
+      backgroundColor: '#0f172a', 
+      borderColor: '#1e293b', 
       borderWidth: 1,
       borderRadius: 8,
       padding: 12,
       textStyle: {
-        color: '#f1f5f9', // slate-100
+        color: '#f1f5f9', 
       },
       extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);',
       formatter: (params: any[]) => {
@@ -332,14 +326,14 @@ const generateEChartsOptions = (
           allItems.push({
             name: 'Mínimo do Mercado',
             value: reconstructedMarket.min,
-            color: '#22d3ee', // teal/cyan neon (bate com a faixa azul)
+            color: '#22d3ee', 
           });
         
         if (reconstructedMarket.max !== null)
           allItems.push({
             name: 'Máximo do Mercado',
             value: reconstructedMarket.max,
-            color: '#fb7185', // rose/red neon (bate com a faixa vermelha)
+            color: '#fb7185', 
           });
 
         const sorted = allItems.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
@@ -380,7 +374,7 @@ const generateEChartsOptions = (
   };
 };
 
-const HistoryPriceChart: React.FC<HistoryPriceChartProps> = ({ chartData, seriesConfig }) => {
+const HistoryPriceChart: React.FC<HistoryPriceChartProps> = ({ chartData, seriesConfig, userProfile, selectedBase }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>(null);
 
@@ -388,7 +382,7 @@ const HistoryPriceChart: React.FC<HistoryPriceChartProps> = ({ chartData, series
     if (!chartData.labels || chartData.labels.length === 0) return {};
     const allTimestamps = chartData.labels.map(l => new Date(l + 'T00:00:00Z').getTime());
     const endTime = allTimestamps[allTimestamps.length - 1];
-    const startIndex = Math.max(0, allTimestamps.length - 30);
+    const startIndex = Math.max(0, allTimestamps.length - 90);
     const startTime = allTimestamps[startIndex];
     return { startValue: startTime, endValue: endTime };
   }, [chartData.labels]);
@@ -418,7 +412,11 @@ const HistoryPriceChart: React.FC<HistoryPriceChartProps> = ({ chartData, series
   }, [chartData, seriesConfig, defaultZoom]);
 
   return (
-    <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 mb-6">
+    <PriceWatermarkedSection
+        userProfile={userProfile}
+        selectedBase={selectedBase}
+        className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 mb-6"
+    >
       <div className="h-96 relative">
         {chartData.labels.length > 0 ? (
           <div ref={chartRef} style={{ width: '100%', height: '100%' }} />
@@ -428,7 +426,7 @@ const HistoryPriceChart: React.FC<HistoryPriceChartProps> = ({ chartData, series
           </div>
         )}
       </div>
-    </div>
+    </PriceWatermarkedSection>
   );
 };
 

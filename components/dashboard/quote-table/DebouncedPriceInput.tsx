@@ -25,7 +25,8 @@ const DebouncedPriceInput: React.FC<DebouncedPriceInputProps> = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawValue = e.target.value;
-        let digits = rawValue.replace(/\D/g, '').slice(0, 5);
+        // ALTERADO: Limita a 4 dígitos para 3 casas decimais
+        let digits = rawValue.replace(/\D/g, '').slice(0, 4);
         if (digits === '') {
             setLocalValue('');
             return;

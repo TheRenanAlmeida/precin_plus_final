@@ -1,10 +1,11 @@
 
-
 import React, { useMemo } from 'react';
 import type { ProductData, DistributorColors } from '../../types';
 import { formatPriceSmart } from '../../utils/dataHelpers';
 import { getOriginalBrandName } from '../../utils/styleManager';
 import { FUEL_PRODUCTS } from '../../constants/fuels';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 interface RankingPanelProps {
   marketData: ProductData[];
@@ -63,7 +64,9 @@ const RankingPanel: React.FC<RankingPanelProps> = ({ marketData, distributorColo
                 {/* Header do Card */}
                 <div className="p-3 border-b border-slate-800 bg-slate-900/50">
                     <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wide text-center truncate" title={product}>
-                        {product}
+                        <Tip text={TOOLTIP.HEADER_RANKING}>
+                            {product}
+                        </Tip>
                     </h3>
                 </div>
 

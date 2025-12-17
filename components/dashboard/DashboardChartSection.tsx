@@ -6,6 +6,8 @@ import { formatPriceSmart } from '../../utils/dataHelpers';
 import { getOriginalBrandName } from '../../utils/styleManager';
 import type { FuelProduct } from '../../constants/fuels';
 import type { ChartSeries } from '../../types';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 interface DashboardChartSectionProps {
     selectedFuel: string;
@@ -49,7 +51,9 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
                     <div className="flex justify-between items-start mb-2">
                         <div>
                             <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide flex items-center gap-2">
-                                Mercado de {selectedFuel}
+                                <Tip text={TOOLTIP.HEADER_MARKET_CHART}>
+                                    Mercado de {selectedFuel}
+                                </Tip>
                                 <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 rounded">
                                     {selectedBase}
                                 </span>
@@ -184,4 +188,4 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
     );
 };
 
-export default DashboardChartSection;
+export default React.memo(DashboardChartSection);

@@ -2,6 +2,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { formatPrice } from '../../utils/dataHelpers';
 import { FuelProduct } from '../../constants/fuels';
+import PriceWatermarkedSection from '../PriceWatermarkedSection';
+import { UserProfile } from '../../types';
 
 declare const Chart: any;
 
@@ -365,7 +367,9 @@ export const ChartModal: React.FC<{
   title: string;
   chartData: any;
   refDate: Date;
-}> = ({ isOpen, onClose, title, chartData, refDate }) => {
+  userProfile?: UserProfile;
+  selectedBase?: string;
+}> = ({ isOpen, onClose, title, chartData, refDate, userProfile, selectedBase }) => {
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<any>(null);
   const [isTooltipPinned, setIsTooltipPinned] = useState(false);
@@ -431,21 +435,31 @@ export const ChartModal: React.FC<{
 
   if (!isOpen) return null;
 
+  const content = (
+    <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 w-full max-w-6xl h-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <header className="p-3 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="text-lg font-bold text-slate-100 ml-4">{title}</h3>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </header>
+        <div className="flex-grow p-4 sm:p-6 relative" onMouseLeave={() => setIsTooltipPinned(false)}>
+            <canvas ref={chartRef}></canvas>
+        </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4 sm:p-8 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 w-full max-w-6xl h-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <header className="p-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-100 ml-4">{title}</h3>
-                <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </header>
-            <div className="flex-grow p-4 sm:p-6 relative" onMouseLeave={() => setIsTooltipPinned(false)}>
-                <canvas ref={chartRef}></canvas>
-            </div>
-        </div>
+        {userProfile ? (
+            <PriceWatermarkedSection userProfile={userProfile} selectedBase={selectedBase} className="w-full max-w-6xl h-full max-h-[85vh]">
+                {content}
+            </PriceWatermarkedSection>
+        ) : (
+            content
+        )}
     </div>
   );
 };

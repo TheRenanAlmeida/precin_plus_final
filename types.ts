@@ -190,6 +190,8 @@ export interface HistoryFilterPanelProps {
 export interface HistoryPriceChartProps {
     chartData: { labels: string[], datasets: any[] };
     seriesConfig: ChartSeries[];
+    userProfile: UserProfile; // Added for internal watermark
+    selectedBase: string;     // Added for internal watermark
 }
 
 export interface HistoryDataTableProps {
@@ -198,6 +200,11 @@ export interface HistoryDataTableProps {
     getDistributorColor: (name: string) => DistributorStyle;
     selectedTableDistributors: Set<string>;
     distributorImages: { [key: string]: string | null };
+    contracts?: UserContracts;
+    selectedFuelType?: string;
+    userProfile: UserProfile; // Added for internal watermark
+    selectedBase: string;     // Added for internal watermark
+    goToContracts?: () => void; // Added for navigation
 }
 
 // --- Types for Admin Page ---
@@ -225,3 +232,18 @@ export interface DashboardState {
     brands: BrandName[];
     userProfile: UserProfile;
 }
+
+// --- Types for Contracts/Audit ---
+export type ContractBase = "MIN" | "AVG";
+
+export type ContractRule = { 
+    base: ContractBase; 
+    spread: number; // Valor em R$, ex: 0.04
+    updatedAt: string; // ISO String para auditoria
+};
+
+// Chave: Nome do Combustível (ex: 'Gasolina Comum')
+export type BrandContracts = Record<string, ContractRule>;
+
+// Chave: Nome da Distribuidora (ex: 'Shell')
+export type UserContracts = Record<string, BrandContracts>;

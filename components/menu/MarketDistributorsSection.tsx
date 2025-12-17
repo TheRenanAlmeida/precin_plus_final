@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { DistributorStyle } from '../../types';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 interface MarketDistributorsSectionProps {
     marketDistributorsForBase: Array<{ name: string; imageUrl: string | null }>;
@@ -16,7 +18,9 @@ const MarketDistributorsSection: React.FC<MarketDistributorsSectionProps> = ({
     <>
         <div className="flex flex-col mb-4 border-b border-slate-800 pb-3">
             <h2 className="text-xl font-bold text-slate-100 leading-tight">
-                Cotações Avulsas
+                <Tip text={TOOLTIP.HEADER_MARKET_QUOTES}>
+                    Cotações Avulsas
+                </Tip>
             </h2>
             <div className="flex flex-wrap items-center justify-between mt-2 gap-4">
                 <p className="text-slate-400 text-sm">

@@ -42,7 +42,8 @@ export const calculateIQRAverage = (priceList: number[]): number => {
     if (validPrices.length < 4) {
         const sum = validPrices.reduce((acc, val) => acc + val, 0);
         const avg = validPrices.length > 0 ? sum / validPrices.length : 0;
-        return parseFloat(avg.toFixed(4));
+        // ALTERADO: Máximo de 3 casas decimais
+        return parseFloat(avg.toFixed(3));
     }
 
     const sortedPrices = [...validPrices].sort((a, b) => a - b);
@@ -61,12 +62,14 @@ export const calculateIQRAverage = (priceList: number[]): number => {
     if (filteredPrices.length === 0) {
         const sum = sortedPrices.reduce((acc, val) => acc + val, 0);
         const avg = sortedPrices.length > 0 ? sum / sortedPrices.length : 0;
-        return parseFloat(avg.toFixed(4));
+        // ALTERADO: Máximo de 3 casas decimais
+        return parseFloat(avg.toFixed(3));
     }
 
     const sum = filteredPrices.reduce((acc, val) => acc + val, 0);
     const avg = sum / filteredPrices.length;
-    return parseFloat(avg.toFixed(4));
+    // ALTERADO: Máximo de 3 casas decimais
+    return parseFloat(avg.toFixed(3));
 };
 
 export const calculateProductAveragesFromRecords = (records: { fuel_type: string, price: number }[]): { [product: string]: number } => {
@@ -123,7 +126,8 @@ export const calculateCustomMaxPrice = (prices: ProductPrices): number => {
     }
 
     const maxPrice = Math.max(...minPricesPerDistributor);
-    return parseFloat(maxPrice.toFixed(4));
+    // ALTERADO: Máximo de 3 casas decimais
+    return parseFloat(maxPrice.toFixed(3));
 };
 
 
@@ -141,7 +145,7 @@ const formatPriceValue = (value: number | string): string => {
     const formatter = new Intl.NumberFormat('pt-BR', {
         style: 'decimal',
         minimumFractionDigits: 2, 
-        maximumFractionDigits: 4, 
+        maximumFractionDigits: 3, // ALTERADO: Máximo de 3 casas decimais
         useGrouping: true,
     });
 
@@ -149,6 +153,7 @@ const formatPriceValue = (value: number | string): string => {
 
     const decimalIndex = formatted.indexOf(',');
     if (decimalIndex !== -1) {
+        // Remove zeros à direita irrelevantes após a 3ª casa
         while (formatted.endsWith('0') && formatted.length > decimalIndex + 3) {
             formatted = formatted.substring(0, formatted.length - 1);
         }
@@ -167,6 +172,21 @@ export const formatPriceSmart = (price: number | null | undefined): string => {
 export const formatPrice = (price: number | null): string => {
     if (price === null || isNaN(price)) return '-';
     return `R$ ${formatPriceValue(price)}`;
+};
+
+/**
+ * Formata um desvio (delta) com 3 casas decimais e sinal explícito (+/-).
+ * Ex: +0,026 ou -0,010
+ */
+export const formatDeviation = (value: number | null): string => {
+    if (value === null || isNaN(value)) return '-';
+    const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+    const absValue = Math.abs(value);
+    
+    // Formata sempre com 3 casas para padronização de auditoria
+    const formatted = absValue.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    
+    return `${sign}${formatted}`;
 };
 
 /**

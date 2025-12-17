@@ -2,6 +2,8 @@
 import React from 'react';
 import type { MarketDataTableProps } from '../../types';
 import { formatPriceSmart } from '../../utils/dataHelpers';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 const PRODUCT_ABBR: Record<string, string> = {
   'Gasolina Comum': 'GC',
@@ -31,7 +33,11 @@ const MarketDataTable: React.FC<MarketDataTableProps> = ({
     <div className="bg-slate-900 w-full rounded-2xl border border-slate-800 shadow-lg flex flex-col">
       <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">Tabela do Mercado</h2>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">
+                <Tip text={TOOLTIP.HEADER_MARKET_TABLE}>
+                    Tabela do Mercado
+                </Tip>
+            </h2>
           </div>
       </div>
       

@@ -1,3 +1,4 @@
+
 import { supabase } from '../supabaseClient';
 import type { UserProfile, BrandName } from '../types';
 import { formatDateForInput } from '../utils/dateUtils';
@@ -68,7 +69,8 @@ export const fetchUserDailyPricesForDate = async (userId: string, date: Date, si
         const priceNum = Number(price);
         if (!isNaN(priceNum)) {
             loadedPrices[brand_name]![product_name] = priceNum;
-            const formattedValue = priceNum.toFixed(4).replace('.', ',');
+            // ALTERADO: Formata para 3 casas decimais no input
+            const formattedValue = priceNum.toFixed(3).replace('.', ',');
             loadedInputs[brand_name]![product_name] = formattedValue;
         }
     });

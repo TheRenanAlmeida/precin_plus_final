@@ -1,14 +1,19 @@
 
 import React from 'react';
 import { formatPrice } from '../../utils/dataHelpers';
-import { ProcessedRow } from '../../types';
+import { ProcessedRow, UserProfile } from '../../types';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
+import PriceWatermarkedSection from '../PriceWatermarkedSection';
 
 interface HistorySummaryCardsProps {
   processedData: ProcessedRow[];
   selectedDistributors: Set<string>;
+  userProfile: UserProfile;
+  selectedBase: string;
 }
 
-const HistorySummaryCards: React.FC<HistorySummaryCardsProps> = ({ processedData, selectedDistributors }) => {
+const HistorySummaryCards: React.FC<HistorySummaryCardsProps> = ({ processedData, selectedDistributors, userProfile, selectedBase }) => {
   if (!processedData || processedData.length === 0) return null;
 
   const marketAvgValues = processedData
@@ -96,114 +101,126 @@ const HistorySummaryCards: React.FC<HistorySummaryCardsProps> = ({ processedData
   const getBgColor = (val: number) => val > 0 ? 'bg-rose-950/40 text-rose-300 border border-rose-900/50' : val < 0 ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-900/50' : 'bg-slate-800 text-slate-300';
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      {/* Card Mercado */}
-      <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-          Mercado (Evolução Média)
-        </p>
-        {hasMarket && marketStart !== null && marketEnd !== null && marketDiff !== null ? (
-          <div className="flex flex-col h-full justify-between">
-            <div>
-                <div className="flex justify-between items-end mb-2">
-                    <span className="text-sm text-slate-400">Início</span>
-                    <span className="font-sans tabular-nums text-slate-300">{formatPrice(marketStart)}</span>
-                </div>
-                <div className="flex justify-between items-end border-b border-slate-800 pb-2 mb-2">
-                    <span className="text-sm text-slate-400">Atual</span>
-                    <span className="font-sans tabular-nums font-bold text-slate-100 text-lg">{formatPrice(marketEnd)}</span>
-                </div>
-            </div>
-            <div className={`p-3 rounded-lg flex items-center justify-between ${getBgColor(marketDiff)}`}>
-              <span className="text-xs font-bold uppercase">Variação</span>
-              <span className="font-bold text-sm">
-                {marketDiff > 0 ? '▲' : marketDiff < 0 ? '▼' : ''} {formatDiffLabel(marketDiff)} ({formatPct(marketPct)})
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-grow flex items-center justify-center text-center">
-             <p className="text-xs text-slate-500">
-                Ainda não há dados suficientes de mercado.
-             </p>
-          </div>
-        )}
-      </div>
-
-      {/* Card Evolução por Distribuidora */}
-      <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col max-h-[250px]">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
-          Sua Evolução (Por Bandeira)
-        </p>
-        
-        {distributorEvolutions && distributorEvolutions.length > 0 ? (
-            <div className="overflow-y-auto pr-1 space-y-3 flex-grow custom-scrollbar">
-                {distributorEvolutions.map((item) => (
-                    <div key={item.name} className="border-b border-slate-800 last:border-0 pb-2 last:pb-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-sm text-slate-300 truncate max-w-[120px]">{item.name}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getBgColor(item.diff)}`}>
-                                {formatPct(item.pct)}
-                            </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-slate-500 font-sans tabular-nums">
-                            <span>{formatPrice(item.startPrice)} <span className="text-slate-600">→</span> {formatPrice(item.endPrice)}</span>
-                            <span className={getDiffColor(item.diff)}>
-                                {item.diff > 0 ? '+' : ''}{formatPrice(item.diff)}
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        ) : (
-          <div className="flex-grow flex items-center justify-center text-center">
-            <p className="text-xs text-slate-500">
-                Selecione distribuidoras e preencha cotações em pelo menos 2 datas.
+    <PriceWatermarkedSection
+        userProfile={userProfile}
+        selectedBase={selectedBase}
+        className="mb-4 rounded-xl overflow-hidden"
+    >
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card Mercado */}
+        <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
+            <Tip text={TOOLTIP.HEADER_HISTORY_SUMMARY_MARKET}>
+                Mercado (Evolução Média)
+            </Tip>
             </p>
-          </div>
-        )}
-      </div>
-
-      {/* Card Melhor Oportunidade */}
-      <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-          Melhor Descolamento vs Mercado
-        </p>
-        {bestAdvantage ? (
-          <div className="flex flex-col h-full justify-between">
-            <div>
-                <p className="text-xs text-slate-400 mb-1">
-                    Em <span className="font-bold text-slate-200">{bestAdvantage.periodDisplay}</span>, a distribuidora <span className="font-bold text-emerald-400">{bestAdvantage.distributor}</span> teve a melhor condição.
+            {hasMarket && marketStart !== null && marketEnd !== null && marketDiff !== null ? (
+            <div className="flex flex-col h-full justify-between">
+                <div>
+                    <div className="flex justify-between items-end mb-2">
+                        <span className="text-sm text-slate-400">Início</span>
+                        <span className="font-sans tabular-nums text-slate-300">{formatPrice(marketStart)}</span>
+                    </div>
+                    <div className="flex justify-between items-end border-b border-slate-800 pb-2 mb-2">
+                        <span className="text-sm text-slate-400">Atual</span>
+                        <span className="font-sans tabular-nums font-bold text-slate-100 text-lg">{formatPrice(marketEnd)}</span>
+                    </div>
+                </div>
+                <div className={`p-3 rounded-lg flex items-center justify-between ${getBgColor(marketDiff)}`}>
+                <span className="text-xs font-bold uppercase">Variação</span>
+                <span className="font-bold text-sm">
+                    {marketDiff > 0 ? '▲' : marketDiff < 0 ? '▼' : ''} {formatDiffLabel(marketDiff)} ({formatPct(marketPct)})
+                </span>
+                </div>
+            </div>
+            ) : (
+            <div className="flex-grow flex items-center justify-center text-center">
+                <p className="text-xs text-slate-500">
+                    Ainda não há dados suficientes de mercado.
                 </p>
             </div>
-            
-            <div className="space-y-1 my-2">
-                <div className="flex justify-between text-xs border-b border-slate-800 pb-1">
-                    <span className="text-slate-500">Seu Preço</span>
-                    <span className="font-sans tabular-nums font-semibold text-emerald-400">{formatPrice(bestAdvantage.userPrice)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Média Mercado</span>
-                    <span className="font-sans tabular-nums font-semibold text-slate-400">{formatPrice(bestAdvantage.marketPrice)}</span>
-                </div>
-            </div>
+            )}
+        </div>
 
-            <div className={`p-3 rounded-lg flex items-center justify-between bg-emerald-950/30 text-emerald-300 border border-emerald-900/50`}>
-              <span className="text-xs font-bold uppercase">Vantagem</span>
-              <span className="font-bold text-sm font-sans tabular-nums">
-                 {formatPrice(bestAdvantage.diff)} abaixo
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-grow flex items-center justify-center text-center">
-            <p className="text-xs text-slate-500">
-              Não encontramos registros abaixo da média de mercado no período.
+        {/* Card Evolução por Distribuidora */}
+        <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col max-h-[250px]">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+            <Tip text={TOOLTIP.HEADER_HISTORY_SUMMARY_YOURS}>
+                Sua Evolução (Por Bandeira)
+            </Tip>
             </p>
-          </div>
-        )}
-      </div>
-    </section>
+            
+            {distributorEvolutions && distributorEvolutions.length > 0 ? (
+                <div className="overflow-y-auto pr-1 space-y-3 flex-grow custom-scrollbar">
+                    {distributorEvolutions.map((item) => (
+                        <div key={item.name} className="border-b border-slate-800 last:border-0 pb-2 last:pb-0">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="font-bold text-sm text-slate-300 truncate max-w-[120px]">{item.name}</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getBgColor(item.diff)}`}>
+                                    {formatPct(item.pct)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-xs text-slate-500 font-sans tabular-nums">
+                                <span>{formatPrice(item.startPrice)} <span className="text-slate-600">→</span> {formatPrice(item.endPrice)}</span>
+                                <span className={getDiffColor(item.diff)}>
+                                    {item.diff > 0 ? '+' : ''}{formatPrice(item.diff)}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+            <div className="flex-grow flex items-center justify-center text-center">
+                <p className="text-xs text-slate-500">
+                    Selecione distribuidoras e preencha cotações em pelo menos 2 datas.
+                </p>
+            </div>
+            )}
+        </div>
+
+        {/* Card Melhor Oportunidade */}
+        <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4 flex flex-col">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
+            <Tip text={TOOLTIP.HEADER_HISTORY_SUMMARY_BEST}>
+                Melhor Descolamento vs Mercado
+            </Tip>
+            </p>
+            {bestAdvantage ? (
+            <div className="flex flex-col h-full justify-between">
+                <div>
+                    <p className="text-xs text-slate-400 mb-1">
+                        Em <span className="font-bold text-slate-200">{bestAdvantage.periodDisplay}</span>, a distribuidora <span className="font-bold text-emerald-400">{bestAdvantage.distributor}</span> teve a melhor condição.
+                    </p>
+                </div>
+                
+                <div className="space-y-1 my-2">
+                    <div className="flex justify-between text-xs border-b border-slate-800 pb-1">
+                        <span className="text-slate-500">Seu Preço</span>
+                        <span className="font-sans tabular-nums font-semibold text-emerald-400">{formatPrice(bestAdvantage.userPrice)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Média Mercado</span>
+                        <span className="font-sans tabular-nums font-semibold text-slate-400">{formatPrice(bestAdvantage.marketPrice)}</span>
+                    </div>
+                </div>
+
+                <div className={`p-3 rounded-lg flex items-center justify-between bg-emerald-950/30 text-emerald-300 border border-emerald-900/50`}>
+                <span className="text-xs font-bold uppercase">Vantagem</span>
+                <span className="font-bold text-sm font-sans tabular-nums">
+                    {formatPrice(bestAdvantage.diff)} abaixo
+                </span>
+                </div>
+            </div>
+            ) : (
+            <div className="flex-grow flex items-center justify-center text-center">
+                <p className="text-xs text-slate-500">
+                Não encontramos registros abaixo da média de mercado no período.
+                </p>
+            </div>
+            )}
+        </div>
+        </section>
+    </PriceWatermarkedSection>
   );
 };
 

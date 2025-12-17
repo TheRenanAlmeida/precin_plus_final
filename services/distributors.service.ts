@@ -1,3 +1,4 @@
+
 import { supabase } from '../supabaseClient';
 import { DistributorDBStyle } from '../types';
 
@@ -44,12 +45,25 @@ export const fetchDistributorsAndStyles = async (signal?: AbortSignal): Promise<
         if (error.name === 'AbortError' || error.message?.includes('Aborted') || error.message?.includes('aborted')) {
             throw error;
         }
-        console.error('Unexpected error in fetchDistributorsAndStyles:', error);
+        
+        // Suppress "Failed to fetch" from throwing aggressively, just log warning
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+             console.warn('Network error suppressed in fetchDistributorsAndStyles:', error.message);
+             return {
+                distributorsData: null,
+                stylesData: null,
+                distributorsError: new Error('Falha de conexão. Verifique sua internet.'),
+                stylesError: new Error('Falha de conexão. Verifique sua internet.'),
+            };
+        }
+
+        // Log but return partial error state for handling upstream
+        console.warn('Error in fetchDistributorsAndStyles:', error.message || error);
         return {
             distributorsData: null,
             stylesData: null,
-            distributorsError: new Error('Failed to fetch distributors data.'),
-            stylesError: new Error('Failed to fetch styles data.'),
+            distributorsError: error,
+            stylesError: error,
         };
     }
 };

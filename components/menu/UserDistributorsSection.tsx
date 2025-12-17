@@ -1,6 +1,9 @@
+
 import React from 'react';
 import { BandeiraBasePair, DistributorStyle } from '../../types';
 import DistributorCard from './DistributorCard';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 interface UserDistributor extends BandeiraBasePair {
     imageUrl: string | null;
@@ -22,7 +25,9 @@ const UserDistributorsSection: React.FC<UserDistributorsSectionProps> = ({
     <>
         <div className="flex flex-col mb-4 border-b border-slate-800 pb-3">
             <h2 className="text-xl font-bold text-slate-100 leading-tight">
-                Minhas Distribuidoras
+                <Tip text={TOOLTIP.HEADER_MY_DISTRIBUTORS}>
+                    Minhas Distribuidoras
+                </Tip>
             </h2>
             <div className="flex flex-wrap items-center justify-between mt-2 gap-4">
                 <p className="text-slate-400 text-sm">

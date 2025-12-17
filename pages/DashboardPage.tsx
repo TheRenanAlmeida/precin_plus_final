@@ -20,6 +20,9 @@ import RankingPanel from '../components/dashboard/RankingPanel';
 // Novos componentes refatorados
 import DashboardFilters from '../components/dashboard/DashboardFilters';
 import DashboardChartSection from '../components/dashboard/DashboardChartSection';
+import { Tip } from '../components/common/Tip';
+import { TOOLTIP } from '../constants/tooltips';
+import PriceWatermarkedSection from '../components/PriceWatermarkedSection';
 
 interface DashboardPageProps {
   goBack: () => void;
@@ -124,7 +127,7 @@ export default function DashboardPage({ goBack, userProfile, availableBases, sel
   const [pendingDateString, setPendingDateString] = useState(formatDateForInput(refDate));
   
   // Handlers
-  const handleChartExpand = (fuelType: string) => setExpandedChart(fuelType);
+  const handleChartExpand = useCallback((fuelType: string) => setExpandedChart(fuelType), []);
   const handleChartClose = () => setExpandedChart(null);
   const handleDistributorPillClick = useCallback((distributor: string) => {
     if (marketTableRef.current) {
@@ -231,27 +234,31 @@ export default function DashboardPage({ goBack, userProfile, availableBases, sel
             goBack={goBack}
         />
 
-        {/* ROW 1: New Modular Chart Section */}
-        <DashboardChartSection 
-            selectedFuel={selectedFuel}
-            setSelectedFuel={setSelectedFuel}
-            selectedBase={selectedBase}
-            products={products}
-            dashboardSeriesConfig={dashboardSeriesConfig}
-            toggleDashboardSeriesVisibility={toggleDashboardSeriesVisibility}
-            distributorImages={distributorImages}
-            filteredChartData={filteredChartData}
-            refDate={refDate}
-            handleChartExpand={handleChartExpand}
-            purchaseThermometerData={purchaseThermometerData}
-        />
+        {/* ROW 1: New Modular Chart Section (WATERMARKED) */}
+        <PriceWatermarkedSection userProfile={userProfile} selectedBase={selectedBase}>
+            <DashboardChartSection 
+                selectedFuel={selectedFuel}
+                setSelectedFuel={setSelectedFuel}
+                selectedBase={selectedBase}
+                products={products}
+                dashboardSeriesConfig={dashboardSeriesConfig}
+                toggleDashboardSeriesVisibility={toggleDashboardSeriesVisibility}
+                distributorImages={distributorImages}
+                filteredChartData={filteredChartData}
+                refDate={refDate}
+                handleChartExpand={handleChartExpand}
+                purchaseThermometerData={purchaseThermometerData}
+            />
+        </PriceWatermarkedSection>
 
-        {/* ROW 2: Customer Quotes (Full Width) */}
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col h-auto">
+        {/* ROW 2: Customer Quotes (Full Width) (WATERMARKED) */}
+        <PriceWatermarkedSection userProfile={userProfile} selectedBase={selectedBase} className="bg-slate-900 rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col h-auto">
             <div className="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-900/50">
                 <div>
                     <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wide flex items-center gap-2">
-                        Suas Cotações do Dia
+                        <Tip text={TOOLTIP.HEADER_YOUR_QUOTES}>
+                            Suas Cotações do Dia
+                        </Tip>
                         <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 rounded ml-1">
                             {selectedBase}
                         </span>
@@ -286,10 +293,10 @@ export default function DashboardPage({ goBack, userProfile, availableBases, sel
                     />
                 </div>
             </div>
-        </div>
+        </PriceWatermarkedSection>
 
-        {/* ROW 3: Market Rankings Table Section (Full Width) */}
-        <div ref={marketTableRef} className="bg-slate-900 rounded-2xl border border-slate-800 shadow-lg overflow-hidden h-auto">
+        {/* ROW 3: Market Rankings Table Section (Full Width) (WATERMARKED) */}
+        <PriceWatermarkedSection userProfile={userProfile} selectedBase={selectedBase} className="bg-slate-900 rounded-2xl border border-slate-800 shadow-lg overflow-hidden h-auto" ref={marketTableRef}>
              <div className="w-full">
                  <MarketDataTable 
                     marketData={marketData}
@@ -300,16 +307,16 @@ export default function DashboardPage({ goBack, userProfile, availableBases, sel
                     highlightedDistributor={highlightedDistributor}
                  />
              </div>
-        </div>
+        </PriceWatermarkedSection>
 
-        {/* ROW 4: Rankings Panel (5 Containers Side-by-Side) */}
-        <div>
+        {/* ROW 4: Rankings Panel (5 Containers Side-by-Side) (WATERMARKED) */}
+        <PriceWatermarkedSection userProfile={userProfile} selectedBase={selectedBase}>
             <RankingPanel 
                 marketData={marketData}
                 distributorColors={distributorColors}
                 distributorImages={distributorImages}
             />
-        </div>
+        </PriceWatermarkedSection>
 
       </main>
 
@@ -341,6 +348,8 @@ export default function DashboardPage({ goBack, userProfile, availableBases, sel
         title={expandedChart ? `Evolução: ${expandedChart}` : ''}
         chartData={expandedChart ? filteredChartData[expandedChart] : null}
         refDate={refDate}
+        userProfile={userProfile}
+        selectedBase={selectedBase}
       />
     </div>
   );

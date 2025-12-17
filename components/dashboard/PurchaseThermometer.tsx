@@ -1,9 +1,10 @@
 
-
 import React, { useEffect, useRef } from 'react';
 import type { FuelProduct } from '../../constants/fuels';
 import { formatPrice } from '../../utils/dataHelpers';
 import type { PurchaseGaugeMetrics } from '../../utils/fuelGauge';
+import { Tip } from '../common/Tip';
+import { TOOLTIP } from '../../constants/tooltips';
 
 // Declaração do ECharts global
 declare const echarts: any;
@@ -47,7 +48,7 @@ function buildPriceLevelText(
   return `O preço de hoje está próximo da mediana do mercado ${daysText}.`;
 }
 
-const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data }) => {
+const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selectedFuel }) => {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<any>(null);
 
@@ -185,7 +186,15 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data }) => {
 
   return (
     <div className="flex flex-col items-center h-full w-full">
-        <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wide shrink-0">Termômetro de Mercado</h3>
+        <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wide shrink-0">
+            <Tip text={TOOLTIP.HEADER_THERMOMETER}>
+                Termômetro de Mercado
+            </Tip>
+        </h3>
+        
+        <span className="mt-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-900/50 uppercase tracking-wide shrink-0">
+            {selectedFuel}
+        </span>
         
         <div ref={chartRef} className="w-full flex-grow min-h-0" />
         

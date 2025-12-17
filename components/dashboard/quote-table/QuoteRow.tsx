@@ -68,7 +68,7 @@ const QuoteRow: React.FC<QuoteRowProps> = ({
                         <DebouncedPriceInput
                             value={brandPriceInput}
                             onCommit={(val) => onPriceChange(activeBrand, product, val)}
-                            placeholder="0,0000"
+                            placeholder="0,000"
                             className={`
                                 w-full max-w-[110px] text-right bg-transparent border border-transparent rounded
                                 focus:bg-slate-800 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50

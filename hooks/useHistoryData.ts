@@ -6,6 +6,7 @@ import { calculateIQRAverage, calculateCustomMaxPrice } from '../utils/dataHelpe
 import { processHistoryData } from '../utils/historyDataProcessor';
 import { FUEL_PRODUCTS } from '../constants/fuels';
 import { getDistributorStyle, getOriginalBrandName } from '../utils/styleManager';
+import { useContracts } from './useContracts'; // Importação do hook de contratos
 
 type MarketHistoryRecord = { data: string; price: number | null; Distribuidora: string | null };
 type UserPriceRecord = { price_date: string; brand_name: string; price: number };
@@ -27,6 +28,10 @@ export const useHistoryData = (
     const [dbStyles, setDbStyles] = useState<Map<string, DistributorDBStyle>>(new Map());
     const [seriesConfig, setSeriesConfig] = useState<ChartSeries[]>([]);
     const [availableFuelsForBase, setAvailableFuelsForBase] = useState<string[]>([]);
+
+    // Carrega contratos da base selecionada para calcular desvios corretamente na tabela
+    // A lógica de prioridade (* vs base) é resolvida dentro do hook useContracts
+    const { contracts } = useContracts(userProfile?.id, selectedBase);
 
     // Fetch available fuels for the selected base
     useEffect(() => {
@@ -426,6 +431,7 @@ export const useHistoryData = (
     }, [seriesConfig]);
 
     return {
+        contracts, // Retorna os contratos efetivos
         loading,
         error,
         distributorImages,

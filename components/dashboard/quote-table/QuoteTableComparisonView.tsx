@@ -124,7 +124,7 @@ const QuoteTableComparisonView: React.FC<QuoteTableComparisonViewProps> = ({
                                                         <DebouncedPriceInput
                                                             value={brandPriceInput}
                                                             onCommit={(val) => handleBrandPriceChange(brand, produto, val)}
-                                                            placeholder="0,0000"
+                                                            placeholder="0,000"
                                                             className="w-full text-center bg-transparent border border-transparent rounded focus:bg-slate-800 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none font-bold text-slate-100 font-sans tabular-nums text-sm py-1.5 transition-all placeholder-slate-700"
                                                         />
                                                     </div>

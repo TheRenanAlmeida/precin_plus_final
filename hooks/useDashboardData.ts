@@ -76,9 +76,9 @@ export const useDashboardData = (
     const [marketData, setMarketData] = useState<ProductData[]>([]);
     const [unfilteredAveragePrices, setUnfilteredAveragePrices] = useState<{ [product: string]: number }>({});
     const [distributors, setDistributors] = useState<string[]>([]);
-    // FIX: A lista de produtos agora é estática e não depende dos dados de mercado do dia.
-    // Isso garante que o RankingSidebar e a tabela de cotações estejam sempre visíveis e funcionais.
-    const products = [...FUEL_PRODUCTS];
+    // FIX: A lista de produtos agora é estática e memoizada para evitar re-renders desnecessários no gráfico
+    const products = useMemo(() => [...FUEL_PRODUCTS], []);
+    
     const [distributorColors, setDistributorColors] = useState<DistributorColors>({ DEFAULT: defaultDistributorStyle });
     const [distributorImages, setDistributorImages] = useState<{ [key: string]: string | null }>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -569,14 +569,16 @@ export const useDashboardData = (
 
     // Handlers
     const handleBrandPriceChange = useCallback((brand: BrandName, product: string, value: string) => {
-        let digits = value.replace(/\D/g, '').slice(0, 5);
+        // ALTERADO: Limita a 4 dígitos no total (X,XXX) para 3 casas decimais
+        let digits = value.replace(/\D/g, '').slice(0, 4);
         if (digits === '') {
           setAllBrandPriceInputs(p => ({ ...p, [brand]: { ...p[brand], [product]: '' } }));
           setAllBrandPrices(p => ({ ...p, [brand]: { ...p[brand], [product]: 0 } }));
           return;
         }
         const formattedValue = digits.length > 1 ? `${digits.slice(0, 1)},${digits.slice(1)}` : digits;
-        const price = parseInt(digits.padEnd(5, '0'), 10) / 10000;
+        // ALTERADO: Divisão por 1000 para 3 casas decimais
+        const price = parseInt(digits.padEnd(4, '0'), 10) / 1000;
         
         setAllBrandPriceInputs(p => ({ ...p, [brand]: { ...p[brand], [product]: formattedValue } }));
         setAllBrandPrices(p => ({ ...p, [brand]: { ...p[brand], [product]: price } }));

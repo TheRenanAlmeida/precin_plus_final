@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { DistributorColors } from '../../types';
 import { getOriginalBrandName } from '../../utils/styleManager';
 
@@ -48,9 +48,34 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
     setIsComparisonMode,
     goBack
 }) => {
+    const distributorFilterRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (distributorFilterRef.current && !distributorFilterRef.current.contains(event.target as Node)) {
+                setIsDistributorFilterOpen(false);
+            }
+        }
+
+        if (isDistributorFilterOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isDistributorFilterOpen, setIsDistributorFilterOpen]);
+
     return (
         <div className="flex flex-col xl:flex-row gap-4 xl:items-center justify-between bg-slate-900/50 backdrop-blur-sm rounded-xl p-3 border border-slate-800 shadow-sm sticky top-0 z-30">
             <div className="flex flex-wrap items-center gap-3">
+                {/* Menu Button (Left Aligned) */}
+                <button onClick={goBack} className="text-xs font-bold text-slate-400 hover:text-slate-100 uppercase tracking-wide transition-colors flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    Menu
+                </button>
+                
+                <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
                 {/* Base Selector */}
                 <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-1.5 border border-slate-700">
                     <span className="text-xs font-bold text-slate-400 uppercase">Base</span>
@@ -95,7 +120,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                 </div>
 
                 {/* Distributor Filter (Dropdown) */}
-                <div className="relative">
+                <div className="relative" ref={distributorFilterRef}>
                     <button
                         onClick={() => setIsDistributorFilterOpen(!isDistributorFilterOpen)}
                         className={`
@@ -114,62 +139,56 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     </button>
 
                     {isDistributorFilterOpen && (
-                        <>
-                            <div 
-                                className="fixed inset-0 z-40" 
-                                onClick={() => setIsDistributorFilterOpen(false)}
-                            />
-                            <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 flex flex-col max-h-[400px]">
-                                <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 rounded-t-xl sticky top-0 backdrop-blur-sm">
-                                    <button 
-                                        onClick={handleSelectAllDistributors} 
-                                        className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-wider"
-                                    >
-                                        Selecionar Todas
-                                    </button>
-                                    <button 
-                                        onClick={handleClearAllDistributors} 
-                                        className="text-[10px] font-bold text-rose-400 hover:text-rose-300 uppercase tracking-wider"
-                                    >
-                                        Limpar
-                                    </button>
-                                </div>
-                                <div className="overflow-y-auto p-2 space-y-1">
-                                    {distributors.map(dist => {
-                                        const isSelected = selectedDistributors.has(dist);
-                                        const colorStyle = distributorColors[dist] || distributorColors.DEFAULT;
-                                        const imageUrl = distributorImages[getOriginalBrandName(dist)];
-
-                                        return (
-                                            <button
-                                                key={dist}
-                                                onClick={() => handleToggleDistributor(dist)}
-                                                className={`
-                                                    w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-left
-                                                    ${isSelected ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:bg-slate-800/50'}
-                                                `}
-                                            >
-                                                <div 
-                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 bg-transparent'}`}
-                                                >
-                                                    {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
-                                                </div>
-                                                
-                                                <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-                                                    {imageUrl ? (
-                                                        <img src={imageUrl} alt={dist} className="w-4 h-4 object-contain" />
-                                                    ) : (
-                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colorStyle.background }} />
-                                                    )}
-                                                </div>
-                                                
-                                                <span className="truncate flex-1">{dist}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 flex flex-col max-h-[400px]">
+                            <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 rounded-t-xl sticky top-0 backdrop-blur-sm">
+                                <button 
+                                    onClick={handleSelectAllDistributors} 
+                                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-wider"
+                                >
+                                    Selecionar Todas
+                                </button>
+                                <button 
+                                    onClick={handleClearAllDistributors} 
+                                    className="text-[10px] font-bold text-rose-400 hover:text-rose-300 uppercase tracking-wider"
+                                >
+                                    Limpar
+                                </button>
                             </div>
-                        </>
+                            <div className="overflow-y-auto p-2 space-y-1">
+                                {distributors.map(dist => {
+                                    const isSelected = selectedDistributors.has(dist);
+                                    const colorStyle = distributorColors[dist] || distributorColors.DEFAULT;
+                                    const imageUrl = distributorImages[getOriginalBrandName(dist)];
+
+                                    return (
+                                        <button
+                                            key={dist}
+                                            onClick={() => handleToggleDistributor(dist)}
+                                            className={`
+                                                w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-left
+                                                ${isSelected ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:bg-slate-800/50'}
+                                            `}
+                                        >
+                                            <div 
+                                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 bg-transparent'}`}
+                                            >
+                                                {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
+                                            </div>
+                                            
+                                            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                                                {imageUrl ? (
+                                                    <img src={imageUrl} alt={dist} className="w-4 h-4 object-contain" />
+                                                ) : (
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colorStyle.background }} />
+                                                )}
+                                            </div>
+                                            
+                                            <span className="truncate flex-1">{dist}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
@@ -183,12 +202,6 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                     <input type="checkbox" className="hidden" checked={isComparisonMode} onChange={() => setIsComparisonMode(!isComparisonMode)} />
                     <span className="text-xs font-medium text-slate-400 group-hover:text-slate-200 transition-colors">Comparar Bandeiras</span>
                 </label>
-
-                <div className="h-6 w-px bg-slate-700 mx-1"></div>
-
-                <button onClick={goBack} className="text-xs font-bold text-slate-400 hover:text-slate-100 uppercase tracking-wide transition-colors">
-                    Menu
-                </button>
             </div>
         </div>
     );

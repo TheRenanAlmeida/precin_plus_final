@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { UserProfile } from '../types';
+import WatermarkContainer from './WatermarkContainer';
 
 interface GlobalWatermarkProps {
   userProfile: UserProfile | null;
@@ -9,25 +10,16 @@ interface GlobalWatermarkProps {
 const GlobalWatermark: React.FC<GlobalWatermarkProps> = ({ userProfile }) => {
   if (!userProfile) return null;
 
-  // Prepara os textos
-  const name = userProfile.nome || 'Usuário';
-  const email = userProfile.email || '';
-  const cnpj = userProfile.cnpj ? `CNPJ: ${userProfile.cnpj}` : '';
-
-  // Cria um array grande o suficiente para cobrir telas grandes (ex: 5x5 ou 6x6)
-  // O CSS grid cuidará do espaçamento e repetição visual
-  const items = Array.from({ length: 30 }); 
-
+  // Usa position: absolute com h-full e w-full.
+  // Isso requer que o pai (em App.tsx) tenha 'relative' e cresça com o conteúdo.
+  // z-index alto (50) para ficar SOBRE o conteúdo, mas pointer-events-none permite cliques.
+  // Scrollar junto com a página evita a sensação de "flutuar" sobre os elementos.
   return (
-    <div className="global-watermark-overlay" aria-hidden="true">
-      {items.map((_, index) => (
-        <div key={index} className="global-watermark-item">
-          <div className="gw-line font-bold">Precin Plus • Uso Exclusivo</div>
-          <div className="gw-line">{name}</div>
-          <div className="gw-line text-[10px]">{email}</div>
-          {cnpj && <div className="gw-line text-[10px]">{cnpj}</div>}
-        </div>
-      ))}
+    <div className="absolute inset-0 z-50 pointer-events-none overflow-hidden" aria-hidden="true">
+        <WatermarkContainer 
+            userProfile={userProfile} 
+            className="w-full h-full"
+        />
     </div>
   );
 };

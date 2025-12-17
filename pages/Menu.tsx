@@ -20,7 +20,7 @@ interface DistributorData {
     imagem: string | null;
 }
 
-const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDashboard: () => void; goToHistory: () => void; goToAdmin: () => void; userProfile: UserProfile | null; }) => {
+const Menu = ({ goToDashboard, goToHistory, goToAdmin, goToContracts, userProfile }: { goToDashboard: () => void; goToHistory: () => void; goToAdmin: () => void; goToContracts: () => void; userProfile: UserProfile | null; }) => {
     
     const [selectedDistributorToQuote, setSelectedDistributorToQuote] = useState<BandeiraBasePair | null>(null);
     const [allDistributors, setAllDistributors] = useState<DistributorData[]>([]);
@@ -37,6 +37,10 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
     const showNotification = (type: 'success' | 'error', message: string) => {
         setNotification({ type, message });
         setTimeout(() => setNotification(null), 3000);
+    };
+
+    const isNetworkError = (err: any) => {
+        return err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError');
     };
 
     useEffect(() => {
@@ -57,9 +61,11 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                     if (controller.signal.aborted) return;
                     
                     if (error) {
-                        console.error("Error fetching admin bases:", error.message || error);
-                        const errorMessage = (error as any).message || JSON.stringify(error);
-                        showNotification('error', `Erro ao buscar bases de admin: ${errorMessage}`);
+                        if (!isNetworkError(error)) {
+                            console.error("Error fetching admin bases:", error.message || error);
+                            const errorMessage = (error as any).message || JSON.stringify(error);
+                            showNotification('error', `Erro ao buscar bases de admin: ${errorMessage}`);
+                        }
                     } else if (data) {
                         bases = [...new Set((data as { "Nome da Base": string }[])
                             .map(item => item["Nome da Base"])
@@ -85,8 +91,8 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                 const { data, error } = distributorsResult;
                 const { data: stylesData, error: stylesError } = stylesResult;
                 
-                if (stylesError) {
-                    console.error("Error fetching styles:", stylesError.message || stylesError);
+                if (stylesError && !isNetworkError(stylesError)) {
+                    console.warn("Aviso: Não foi possível carregar estilos (pode ser problema de rede ou permissão):", stylesError.message);
                 } else if (stylesData) {
                     const stylesMap = new Map<string, DistributorDBStyle>();
                     (stylesData as DistributorDBStyle[]).forEach(style => stylesMap.set(style.name, style));
@@ -94,13 +100,18 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                 }
 
                 if (error) {
-                    console.error("Error fetching distributors:", error.message || error);
-                    showNotification('error', 'Falha ao carregar lista de distribuidoras.');
+                    if (!isNetworkError(error)) {
+                        console.error("Error fetching distributors:", error.message || error);
+                        showNotification('error', 'Falha ao carregar lista de distribuidoras.');
+                    }
                 } else if (data) {
                     setAllDistributors(data.map(d => ({ name: d.Name, bases: d.Bases || '', imagem: d.imagem || null })));
                 }
             } catch (err: any) {
-                if (err.name !== 'AbortError' && !err.message?.includes('Aborted')) {
+                // Silencia erros se o componente foi desmontado
+                if (controller.signal.aborted) return;
+
+                if (err.name !== 'AbortError' && !err.message?.includes('Aborted') && !isNetworkError(err)) {
                     console.error("Unexpected error in fetchInitialData:", err);
                     showNotification('error', 'Ocorreu um erro inesperado ao carregar dados iniciais.');
                 }
@@ -132,7 +143,9 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                 if (controller.signal.aborted) return;
         
                 if (error) {
-                    console.error("Error fetching last prices:", error.message || error);
+                    if (!isNetworkError(error)) {
+                        console.warn("Aviso: Erro ao buscar últimos preços:", error.message || error);
+                    }
                     return;
                 }
         
@@ -153,7 +166,8 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                     setLastPrices(latestPricesByBrandAndProduct);
                 }
             } catch (err: any) {
-                if (err.name !== 'AbortError' && !err.message?.includes('Aborted')) {
+                if (controller.signal.aborted) return;
+                if (err.name !== 'AbortError' && !err.message?.includes('Aborted') && !isNetworkError(err)) {
                     console.error("Unexpected error in fetchLastPrices:", err);
                 }
             }
@@ -405,6 +419,7 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, userProfile }: { goToDash
                         goToDashboard={goToDashboard} 
                         goToHistory={goToHistory}
                         goToAdmin={goToAdmin}
+                        goToContracts={goToContracts} // Pass the prop here
                         isAdmin={userProfile?.credencial === 'administrador'}
                     />
 

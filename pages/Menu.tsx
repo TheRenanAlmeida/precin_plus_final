@@ -12,35 +12,88 @@ import MarketDistributorsSection from '../components/menu/MarketDistributorsSect
 import NotificationToast from '../components/menu/NotificationToast';
 import QuoteInputForm from '../components/menu/QuoteInputForm';
 import { getDistributorStyle, getOriginalBrandName } from '../utils/styleManager';
+import { formatDateForInput } from '../utils/dateUtils';
+import { getErrorMessage } from '../utils/errorHelpers';
+import { getMarketDayStatus, MarketDayStatus } from '../services/marketDay.service';
 
-// Interface for data from 'Distribuidoras' table
 interface DistributorData {
     name: string;
     bases: string;
     imagem: string | null;
 }
 
-const Menu = ({ goToDashboard, goToHistory, goToAdmin, goToContracts, userProfile }: { goToDashboard: () => void; goToHistory: () => void; goToAdmin: () => void; goToContracts: () => void; userProfile: UserProfile | null; }) => {
+interface MenuProps {
+    goToDashboard: () => void;
+    goToHistory: () => void;
+    goToAdmin: () => void;
+    goToContracts: () => void;
+    userProfile: UserProfile | null;
+    availableBases: string[];
+    selectedBase: string;
+    setSelectedBase: (base: string) => void;
+}
+
+const Menu = ({ 
+    goToDashboard, goToHistory, goToAdmin, goToContracts, userProfile, availableBases, selectedBase, setSelectedBase
+}: MenuProps) => {
     
     const [selectedDistributorToQuote, setSelectedDistributorToQuote] = useState<BandeiraBasePair | null>(null);
     const [allDistributors, setAllDistributors] = useState<DistributorData[]>([]);
     const [distributorColors, setDistributorColors] = useState<{ [key: string]: DistributorStyle }>({});
     const [loading, setLoading] = useState(true);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-    const [availableBases, setAvailableBases] = useState<string[]>([]);
-    const [selectedBase, setSelectedBase] = useState<string>('');
+    const [selectedQuoteDate, setSelectedQuoteDate] = useState<string>(() => formatDateForInput(new Date()));
     const [lastPrices, setLastPrices] = useState<{ [brand: string]: { [product: string]: { price: number; date: string } } }>({});
     const [pendingQuotes, setPendingQuotes] = useState<{ [key: string]: { [product: string]: string } }>({});
     const [priceDataVersion, setPriceDataVersion] = useState(0);
     const [dbStyles, setDbStyles] = useState<Map<string, DistributorDBStyle>>(new Map());
     
-    const showNotification = (type: 'success' | 'error', message: string) => {
-        setNotification({ type, message });
-        setTimeout(() => setNotification(null), 3000);
+    // Estado do Dia de Mercado
+    const [marketDay, setMarketDay] = useState<{ checking: boolean } & MarketDayStatus>({
+        checking: false,
+        sources: 0,
+        valid: true,
+        lastValidDay: null
+    });
+
+    // Efeito para validar o dia usando a nova RPC única com DEBOUNCE
+    useEffect(() => {
+        if (!selectedBase || !selectedQuoteDate) return;
+        const controller = new AbortController();
+        
+        const checkDay = async () => {
+            setMarketDay(prev => ({ ...prev, checking: true }));
+            const result = await getMarketDayStatus(selectedBase, selectedQuoteDate, 3, controller.signal);
+            
+            // Se result for null, a requisição foi abortada. Ignoramos sem resetar o estado.
+            if (result && !controller.signal.aborted) {
+                setMarketDay({ ...result, checking: false });
+            }
+        };
+
+        const timer = setTimeout(checkDay, 250); // Debounce de 250ms
+        
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [selectedBase, selectedQuoteDate]);
+
+    const handleJumpToLastValidDay = () => {
+        if (marketDay.lastValidDay) {
+            setSelectedQuoteDate(marketDay.lastValidDay);
+        }
     };
 
-    const isNetworkError = (err: any) => {
-        return err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError');
+    const handleGoBackOneDay = () => {
+        const d = new Date(selectedQuoteDate + 'T12:00:00');
+        d.setDate(d.getDate() - 1);
+        setSelectedQuoteDate(formatDateForInput(d));
+    };
+
+    const showNotification = (type: 'success' | 'error', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 4000);
     };
 
     useEffect(() => {
@@ -48,80 +101,26 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, goToContracts, userProfil
         const fetchInitialData = async () => {
             if (!userProfile) return;
             setLoading(true);
-
             try {
-                let bases: string[] = [];
-                if (userProfile.credencial === 'administrador') {
-                    const { data, error } = await supabase
-                        .from('Precin - Bases')
-                        .select('"Nome da Base"')
-                        .abortSignal(controller.signal)
-                        .returns<{ "Nome da Base": string }[]>();
-
-                    if (controller.signal.aborted) return;
-                    
-                    if (error) {
-                        if (!isNetworkError(error)) {
-                            console.error("Error fetching admin bases:", error.message || error);
-                            const errorMessage = (error as any).message || JSON.stringify(error);
-                            showNotification('error', `Erro ao buscar bases de admin: ${errorMessage}`);
-                        }
-                    } else if (data) {
-                        bases = [...new Set((data as { "Nome da Base": string }[])
-                            .map(item => item["Nome da Base"])
-                            .filter((base): base is string => typeof base === 'string' && base.length > 0))
-                        ].sort();
-                    }
-                } else if (userProfile.preferencias?.length) {
-                    bases = [...new Set(userProfile.preferencias.map(p => p.base))].sort();
-                }
-                setAvailableBases(bases);
-                
-                if (bases.length > 0 && (!selectedBase || !bases.includes(selectedBase))) {
-                    setSelectedBase(bases[0]);
-                }
-
-                const distributorsPromise = supabase.from('Distribuidoras').select('Name, Bases, imagem').abortSignal(controller.signal);
-                const stylesPromise = supabase.from('pplus_distributor_styles').select('name, bg_color, text_color, shadow_style').abortSignal(controller.signal);
-
-                const [distributorsResult, stylesResult] = await Promise.all([distributorsPromise, stylesPromise]);
-
+                const [distRes, stylesRes] = await Promise.all([
+                    supabase.from('Distribuidoras').select('Name, Bases, imagem').abortSignal(controller.signal),
+                    supabase.from('pplus_distributor_styles').select('name, bg_color, text_color, shadow_style').abortSignal(controller.signal)
+                ]);
                 if (controller.signal.aborted) return;
-
-                const { data, error } = distributorsResult;
-                const { data: stylesData, error: stylesError } = stylesResult;
-                
-                if (stylesError && !isNetworkError(stylesError)) {
-                    console.warn("Aviso: Não foi possível carregar estilos (pode ser problema de rede ou permissão):", stylesError.message);
-                } else if (stylesData) {
+                if (stylesRes.data) {
                     const stylesMap = new Map<string, DistributorDBStyle>();
-                    (stylesData as DistributorDBStyle[]).forEach(style => stylesMap.set(style.name, style));
+                    (stylesRes.data as DistributorDBStyle[]).forEach(style => stylesMap.set(style.name, style));
                     setDbStyles(stylesMap);
                 }
-
-                if (error) {
-                    if (!isNetworkError(error)) {
-                        console.error("Error fetching distributors:", error.message || error);
-                        showNotification('error', 'Falha ao carregar lista de distribuidoras.');
-                    }
-                } else if (data) {
-                    setAllDistributors(data.map(d => ({ name: d.Name, bases: d.Bases || '', imagem: d.imagem || null })));
+                if (distRes.data) {
+                    setAllDistributors(distRes.data.map(d => ({ name: d.Name, bases: d.Bases || '', imagem: d.imagem || null })));
                 }
             } catch (err: any) {
-                // Silencia erros se o componente foi desmontado
-                if (controller.signal.aborted) return;
-
-                if (err.name !== 'AbortError' && !err.message?.includes('Aborted') && !isNetworkError(err)) {
-                    console.error("Unexpected error in fetchInitialData:", err);
-                    showNotification('error', 'Ocorreu um erro inesperado ao carregar dados iniciais.');
-                }
+                if (err.name !== 'AbortError') showNotification('error', 'Erro ao carregar dados iniciais.');
             } finally {
-                if (!controller.signal.aborted) {
-                    setLoading(false);
-                }
+                if (!controller.signal.aborted) setLoading(false);
             }
         };
-
         fetchInitialData();
         return () => controller.abort();
     }, [userProfile]);
@@ -130,332 +129,202 @@ const Menu = ({ goToDashboard, goToHistory, goToAdmin, goToContracts, userProfil
         const controller = new AbortController();
         const fetchLastPrices = async () => {
             if (!userProfile || !selectedBase) return;
-    
             try {
-                const { data, error } = await supabase
-                    .from('pplus_user_daily_prices')
+                const { data, error } = await supabase.from('pplus_user_daily_prices')
                     .select('brand_name, product_name, price, price_date')
                     .eq('user_id', userProfile.id)
                     .eq('base_name', selectedBase)
+                    .lte('price_date', selectedQuoteDate)
                     .order('price_date', { ascending: false })
                     .abortSignal(controller.signal);
-
                 if (controller.signal.aborted) return;
-        
-                if (error) {
-                    if (!isNetworkError(error)) {
-                        console.warn("Aviso: Erro ao buscar últimos preços:", error.message || error);
-                    }
-                    return;
-                }
-        
                 if (data) {
-                    const latestPricesByBrandAndProduct = data.reduce((acc, priceRecord) => {
-                        const { brand_name, product_name, price, price_date } = priceRecord;
-                        if (!acc[brand_name]) {
-                            acc[brand_name] = {};
-                        }
-                        if (!acc[brand_name][product_name]) {
-                            acc[brand_name][product_name] = {
-                                price: price,
-                                date: price_date
-                            };
-                        }
+                    const mapped = data.reduce((acc, r) => {
+                        if (!acc[r.brand_name]) acc[r.brand_name] = {};
+                        if (!acc[r.brand_name][r.product_name]) acc[r.brand_name][r.product_name] = { price: r.price, date: r.price_date };
                         return acc;
-                    }, {} as { [brand: string]: { [product: string]: { price: number; date: string } } });
-                    setLastPrices(latestPricesByBrandAndProduct);
+                    }, {} as any);
+                    setLastPrices(mapped);
                 }
             } catch (err: any) {
-                if (controller.signal.aborted) return;
-                if (err.name !== 'AbortError' && !err.message?.includes('Aborted') && !isNetworkError(err)) {
-                    console.error("Unexpected error in fetchLastPrices:", err);
-                }
+                if (err.name !== 'AbortError') console.error(err);
             }
         };
-    
         fetchLastPrices();
         return () => controller.abort();
-    }, [selectedBase, userProfile, priceDataVersion]);
+    }, [selectedBase, userProfile, priceDataVersion, selectedQuoteDate]);
 
     const { userDistributorsForBase, marketDistributorsForBase } = useMemo(() => {
-        if (loading || !selectedBase || !userProfile?.preferencias) {
-            return { userDistributorsForBase: [], marketDistributorsForBase: [] };
-        }
-    
-        const selectedBaseClean = selectedBase.trim().toLowerCase();
-        
-        const distributorImageMap = allDistributors.reduce((acc, dist) => {
-            acc[dist.name] = dist.imagem;
-            return acc;
-        }, {} as { [key: string]: string | null });
-
-        const userPreferencesForBase = userProfile.preferencias.filter(p => p.base === selectedBase);
-
-        const userDistributorOriginalNamesForBase = new Set(userPreferencesForBase.map(p => getOriginalBrandName(p.bandeira).toLowerCase()));
-    
-        const marketDistributorsForBase = allDistributors
-            .filter(dist => {
-                const operatesInBase = dist.bases.toLowerCase().includes(selectedBaseClean);
-                const isNotUserDistributor = !userDistributorOriginalNamesForBase.has(dist.name.toLowerCase());
-                return operatesInBase && isNotUserDistributor;
-            })
-            .map(dist => ({ name: dist.name, imageUrl: dist.imagem }))
-            .sort((a,b) => a.name.localeCompare(b.name));
-        
-        const userDistributorsForBase = userPreferencesForBase.map(p => {
-            const originalName = getOriginalBrandName(p.bandeira);
-            return {
-                ...p,
-                imageUrl: distributorImageMap[originalName] || null
-            };
-        });
-
-        return { userDistributorsForBase, marketDistributorsForBase };
+        if (loading || !selectedBase || !userProfile?.preferencias) return { userDistributorsForBase: [], marketDistributorsForBase: [] };
+        const baseClean = selectedBase.trim().toLowerCase();
+        const distImageMap = allDistributors.reduce((acc, d) => ({ ...acc, [d.name]: d.imagem }), {} as any);
+        const userPrefs = userProfile.preferencias.filter(p => p.base === selectedBase);
+        const userBrandNames = new Set(userPrefs.map(p => getOriginalBrandName(p.bandeira).toLowerCase()));
+        const marketDists = allDistributors.filter(d => d.bases.toLowerCase().includes(baseClean) && !userBrandNames.has(d.name.toLowerCase()))
+            .map(d => ({ name: d.name, imageUrl: d.imagem })).sort((a,b) => a.name.localeCompare(b.name));
+        const userDists = userPrefs.map(p => ({ ...p, imageUrl: distImageMap[getOriginalBrandName(p.bandeira)] || null }));
+        return { userDistributorsForBase: userDists, marketDistributorsForBase: marketDists };
     }, [allDistributors, selectedBase, userProfile?.preferencias, loading]);
-
-    const isMyDistributorSelected = useMemo(() => {
-        if (!selectedDistributorToQuote) return false;
-        return userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira && d.base === selectedDistributorToQuote.base);
-    }, [selectedDistributorToQuote, userDistributorsForBase]);
-    
-    const isMarketDistributorSelected = useMemo(() => {
-        if (!selectedDistributorToQuote) return false;
-        const isUserDist = userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira && d.base === selectedDistributorToQuote.base);
-        return !isUserDist; // Se não é uma das minhas, é do mercado
-    }, [selectedDistributorToQuote, userDistributorsForBase]);
 
     useEffect(() => {
         if (loading) return;
-
-        const allVisibleDistributors = [
-            ...userDistributorsForBase.map(ud => ud.bandeira),
-            ...marketDistributorsForBase.map(md => md.name),
-        ];
-        const uniqueNames = [...new Set(allVisibleDistributors)];
-
-        const colors = uniqueNames.reduce((acc, name) => {
-            acc[name] = getDistributorStyle(name, dbStyles);
-            return acc;
-        }, {} as { [key: string]: DistributorStyle });
-
+        const uniqueNames = [...new Set([...userDistributorsForBase.map(ud => ud.bandeira), ...marketDistributorsForBase.map(md => md.name)])];
+        const colors = uniqueNames.reduce((acc, name) => ({ ...acc, [name]: getDistributorStyle(name, dbStyles) }), {} as any);
         setDistributorColors(colors);
     }, [userDistributorsForBase, marketDistributorsForBase, loading, dbStyles]);
 
-    const handlePendingPriceChange = (distKey: string, product: string, value: string) => {
-        setPendingQuotes(prev => ({
-            ...prev,
-            [distKey]: {
-                ...(prev[distKey] || {}),
-                [product]: value
+    const getEffectivePricesForForm = (distributor: BandeiraBasePair | null) => {
+        if (!distributor) return {};
+        const key = `${distributor.bandeira}|${distributor.base}|${selectedQuoteDate}`;
+        if (pendingQuotes[key]) return pendingQuotes[key];
+        const brandLastPrices = lastPrices[distributor.bandeira] || {};
+        const suggested: { [product: string]: string } = {};
+        Object.entries(brandLastPrices).forEach(([prod, data]: [string, any]) => {
+            if (data && typeof data.price === 'number') {
+                suggested[prod] = data.price.toFixed(3).replace('.', ',');
             }
-        }));
+        });
+        return suggested;
     };
 
     const handleQuoteSubmit = async (distributor: BandeiraBasePair, prices: { [product: string]: string }) => {
-        if (!userProfile) return;
-        const selectedDistributorKey = `${distributor.bandeira}|${distributor.base}`;
-    
-        const isUserDistributor = userDistributorsForBase.some(
-            d => d.bandeira === distributor.bandeira && d.base === distributor.base
-        );
-    
+        if (!userProfile || !marketDay.valid) {
+            showNotification('error', 'Cotação bloqueada: mercado indisponível nesta data.');
+            return;
+        }
         const validPrices = Object.entries(prices)
-            .map(([product, priceStr]) => {
-                const parsedPrice = parseFloat(priceStr.replace(',', '.'));
-                return { product, price: isNaN(parsedPrice) ? null : parsedPrice };
-            })
-            .filter(item => item.price !== null && item.price > 0);
-        
-        if (validPrices.length === 0) {
-            showNotification('error', 'Nenhum preço válido foi inserido.');
-            return;
-        }
-    
-        if (isUserDistributor) {
-            const recordsToInsert = validPrices.map(({ product, price }) => ({
-                user_id: userProfile.id,
-                user_email: userProfile.email,
-                price_date: new Date().toISOString().split('T')[0],
-                base_name: distributor.base,
-                brand_name: distributor.bandeira,
-                product_name: product,
-                price: price!
-            }));
-            
-            const { error } = await supabase.from('pplus_user_daily_prices').upsert(recordsToInsert, {
-                onConflict: 'user_id, price_date, base_name, brand_name, product_name',
-            });
-    
-            if (error) {
-                console.error("Error submitting user quote:", error);
-                showNotification('error', `Falha ao enviar cotação: ${error.message}`);
-            } else {
-                showNotification('success', `Cotação para ${distributor.bandeira} enviada com sucesso!`);
+            .map(([product, priceStr]) => ({ product, price: parseFloat(priceStr.replace(',', '.')) }))
+            .filter(item => !isNaN(item.price) && item.price > 0);
+        if (validPrices.length === 0) return showNotification('error', 'Nenhum preço válido.');
+
+        const isUserDist = userDistributorsForBase.some(d => d.bandeira === distributor.bandeira && d.base === distributor.base);
+        try {
+            if (isUserDist) {
+                const records = validPrices.map(p => ({ user_id: userProfile.id, user_email: userProfile.email, price_date: selectedQuoteDate, base_name: distributor.base, brand_name: distributor.bandeira, product_name: p.product, price: p.price }));
+                const { error } = await supabase.from('pplus_user_daily_prices').upsert(records, { onConflict: 'user_id, price_date, base_name, brand_name, product_name' });
+                if (error) throw error;
+                showNotification('success', 'Cotação enviada!');
                 setSelectedDistributorToQuote(null);
-                setPendingQuotes(prev => {
-                    const newQuotes = { ...prev };
-                    delete newQuotes[selectedDistributorKey];
-                    return newQuotes;
-                });
                 setPriceDataVersion(v => v + 1);
-            }
-        } else {
-            const recordsToInsert = validPrices.map(({ product, price }) => ({
-                distribuidora: distributor.bandeira,
-                base: distributor.base,
-                fuel_type: product,
-                price: price!,
-                user_id: userProfile.id,
-                status: 'PENDENTE'
-            }));
-            
-            const { error } = await supabase.from('pplus_pending_prices').insert(recordsToInsert);
-    
-            if (error) {
-                console.error("Error submitting market quote:", error);
-                showNotification('error', `Falha ao enviar cotação avulsa: ${error.message}`);
             } else {
-                showNotification('success', 'Cotação registrada e enviada para validação!');
+                const records = validPrices.map(p => ({ distribuidora: distributor.bandeira, base: distributor.base, fuel_type: p.product, price: p.price, user_id: userProfile.id, status: 'PENDENTE' }));
+                const { error } = await supabase.from('pplus_pending_prices').insert(records);
+                if (error) throw error;
+                showNotification('success', 'Cotação enviada para validação!');
                 setSelectedDistributorToQuote(null);
-                 setPendingQuotes(prev => {
-                    const newQuotes = { ...prev };
-                    delete newQuotes[selectedDistributorKey];
-                    return newQuotes;
-                });
             }
+        } catch (error) {
+            showNotification('error', `Falha ao enviar: ${getErrorMessage(error)}`);
         }
     };
 
-    const handleSelectDistributorToQuote = (dist: BandeiraBasePair) => {
-        // Se o mesmo for clicado, deseleciona.
-        if (selectedDistributorToQuote?.bandeira === dist.bandeira && selectedDistributorToQuote?.base === dist.base) {
-            setSelectedDistributorToQuote(null);
-            return;
-        }
-
-        const key = `${dist.bandeira}|${dist.base}`;
-        const lastSavedPrices = lastPrices[dist.bandeira];
-
-        if (!pendingQuotes[key] && lastSavedPrices) {
-            const initialFormPrices: { [product: string]: string } = {};
-            Object.keys(lastSavedPrices).forEach(product => {
-                const priceInfo = lastSavedPrices[product];
-                if (priceInfo && typeof priceInfo.price === 'number') {
-                    const formattedPrice = priceInfo.price.toFixed(4).replace('.', ',');
-                    initialFormPrices[product] = formattedPrice;
-                }
-            });
-            
-            setPendingQuotes(prev => ({
-                ...prev,
-                [key]: initialFormPrices
-            }));
-        }
-        
-        setSelectedDistributorToQuote(dist);
-    };
+    if (loading) return <LoadingScreen />;
     
-    const handleSelectMarketDistributor = (distName: string) => {
-        const newSelection = { bandeira: distName, base: selectedBase };
-        // Se a mesma distribuidora for clicada novamente, desmarque-a.
-        if (selectedDistributorToQuote?.bandeira === distName && selectedDistributorToQuote?.base === selectedBase) {
-            setSelectedDistributorToQuote(null);
-        } else {
-            setSelectedDistributorToQuote(newSelection);
-        }
-    };
-
-    const styleForSelected = selectedDistributorToQuote ? getDistributorStyle(selectedDistributorToQuote.bandeira, dbStyles) : null;
-    const selectedDistributorKey = selectedDistributorToQuote ? `${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}` : '';
-
-    if (loading) {
-        return <LoadingScreen />;
-    }
-    
-    const renderFormContainer = (distributor: BandeiraBasePair) => {
-        const style = distributorColors[distributor.bandeira] || distributorColors.DEFAULT;
-        
-        return (
-            <div 
-                className="rounded-r-xl overflow-hidden border-y border-r border-l-[6px] border-slate-700 mt-4 shadow-lg transition-all animate-fade-in"
-                style={{ borderLeftColor: style.background }}
-            >
-                 <div className="p-4 bg-slate-800 flex justify-between items-center">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-100">
-                            Cotação: <span style={{ color: style.background }}>{distributor.bandeira}</span>
-                        </h2>
-                        <p className="text-sm text-slate-400">
-                            Insira as cotações para a Base {distributor.base}.
-                        </p>
-                    </div>
-                </div>
-                <div className="p-6 bg-slate-900/50">
-                    <QuoteInputForm 
-                        distributor={distributor} 
-                        initialPrices={pendingQuotes[selectedDistributorKey] || {}}
-                        onPriceChange={(product, value) => handlePendingPriceChange(selectedDistributorKey, product, value)}
-                        onSubmit={handleQuoteSubmit} 
-                        onCancel={() => setSelectedDistributorToQuote(null)} 
-                    />
-                </div>
-            </div>
-        );
-    };
-
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200">
-            <Header userProfile={userProfile} className="bg-slate-950 border-b border-slate-800" />
+            <Header 
+                userProfile={userProfile} 
+                className="bg-slate-950 border-b border-slate-800"
+                onLogoClick={() => setSelectedDistributorToQuote(null)}
+            />
             <div className="max-w-[1600px] mx-auto py-8 px-4 sm:px-6 lg:px-8">
-                
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-extrabold text-slate-100 tracking-tight">Portal de Cotações</h1>
-                    <p className="mt-2 text-lg text-slate-400">Insira seus preços e acesse a inteligência de mercado.</p>
+                    <p className="mt-2 text-lg text-slate-300 font-sans font-medium">Insira suas cotações e acesse a inteligência de mercado.</p>
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    
-                    <NavigationSidebar 
-                        goToDashboard={goToDashboard} 
-                        goToHistory={goToHistory}
-                        goToAdmin={goToAdmin}
-                        goToContracts={goToContracts} // Pass the prop here
-                        isAdmin={userProfile?.credencial === 'administrador'}
-                    />
+                    <NavigationSidebar goToDashboard={goToDashboard} goToHistory={goToHistory} goToAdmin={goToAdmin} goToContracts={goToContracts} isAdmin={userProfile?.credencial === 'administrador'} />
 
                     <main className="lg:col-span-9">
-                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                            
+                        {!marketDay.valid && !marketDay.checking && (
+                            <div className="bg-rose-950/20 border border-rose-900/50 rounded-2xl p-5 mb-8 flex flex-col items-center justify-between gap-4 animate-fade-in shadow-lg">
+                                <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
+                                    <div className="bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 shrink-0">
+                                        <svg className="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                    </div>
+                                    <div className="flex-grow text-center sm:text-left">
+                                        <h3 className="font-bold text-rose-400 uppercase tracking-wide">Dia Sem Mercado Operacional</h3>
+                                        <p className="text-sm text-rose-200 font-sans font-medium mt-0.5">
+                                            A base <strong className="text-rose-100">{selectedBase}</strong> não possui mercado operacional suficiente registrado em {selectedQuoteDate}.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap justify-center gap-2 shrink-0">
+                                        <button onClick={handleGoBackOneDay} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg font-bold text-xs border border-slate-700 transition-all">
+                                            Voltar 1 dia
+                                        </button>
+                                        {marketDay.lastValidDay && (
+                                            <button onClick={handleJumpToLastValidDay} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs shadow-md transition-all">
+                                                Ir para último dia com mercado
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                             <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 h-fit overflow-hidden">
-                                <div className={`transition-all duration-500 ease-in-out ${isMyDistributorSelected ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible p-6'}`}>
+                                <div className={`transition-all duration-500 p-6 ${selectedDistributorToQuote && userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira) ? 'max-h-0 opacity-0 invisible p-0' : 'max-h-[1000px] opacity-100 visible'}`}>
                                     <UserDistributorsSection
-                                        userDistributorsForBase={userDistributorsForBase}
-                                        distributorColors={distributorColors}
-                                        lastPrices={lastPrices}
-                                        availableBases={availableBases}
-                                        selectedBase={selectedBase}
-                                        setSelectedBase={setSelectedBase}
-                                        handleSelectDistributorToQuote={handleSelectDistributorToQuote}
+                                        userDistributorsForBase={userDistributorsForBase} distributorColors={distributorColors} lastPrices={lastPrices} availableBases={availableBases} 
+                                        selectedBase={selectedBase} setSelectedBase={setSelectedBase} selectedQuoteDate={selectedQuoteDate} setSelectedQuoteDate={setSelectedQuoteDate} handleSelectDistributorToQuote={setSelectedDistributorToQuote}
+                                        userId={userProfile?.id}
                                     />
                                 </div>
-                                <div className={`transition-all duration-500 ease-in-out ${isMyDistributorSelected ? 'max-h-[1000px] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
-                                    {isMyDistributorSelected && selectedDistributorToQuote && renderFormContainer(selectedDistributorToQuote)}
-                                </div>
+                                {selectedDistributorToQuote && userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira) && (
+                                    <div className="p-6 animate-fade-in">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h2 className="text-lg font-bold text-slate-100">Cotação: <span style={{ color: distributorColors[selectedDistributorToQuote.bandeira]?.background }}>{selectedDistributorToQuote.bandeira}</span></h2>
+                                            <span className="text-[10px] font-bold text-slate-300 font-sans uppercase px-2 py-1 bg-slate-800 rounded">{selectedQuoteDate}</span>
+                                        </div>
+                                        <QuoteInputForm 
+                                            distributor={selectedDistributorToQuote} 
+                                            initialPrices={getEffectivePricesForForm(selectedDistributorToQuote)}
+                                            onPriceChange={(p, v) => {
+                                                const currentEffective = getEffectivePricesForForm(selectedDistributorToQuote);
+                                                setPendingQuotes(prev => ({ 
+                                                    ...prev, 
+                                                    [`${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}|${selectedQuoteDate}`]: { 
+                                                        ...(prev[`${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}|${selectedQuoteDate}`] || currentEffective), 
+                                                        [p]: v 
+                                                    } 
+                                                }));
+                                            }}
+                                            onSubmit={handleQuoteSubmit} onCancel={() => setSelectedDistributorToQuote(null)} 
+                                            disabled={!marketDay.valid}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 h-fit overflow-hidden">
-                                <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible p-6'}`}>
-                                   <MarketDistributorsSection
-                                        marketDistributorsForBase={marketDistributorsForBase}
-                                        distributorColors={distributorColors}
-                                        selectedBase={selectedBase}
-                                        handleSelectMarketDistributor={handleSelectMarketDistributor}
-                                        selectedDistributorName={isMarketDistributorSelected ? selectedDistributorToQuote?.bandeira || null : null}
-                                    />
+                                <div className={`transition-all duration-500 p-6 ${selectedDistributorToQuote && !userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira) ? 'max-h-0 opacity-0 invisible p-0' : 'max-h-[1000px] opacity-100 visible'}`}>
+                                   <MarketDistributorsSection marketDistributorsForBase={marketDistributorsForBase} distributorColors={distributorColors} selectedBase={selectedBase} handleSelectMarketDistributor={(d) => setSelectedDistributorToQuote({ bandeira: d, base: selectedBase })} selectedDistributorName={selectedDistributorToQuote?.bandeira || null} />
                                 </div>
-                                <div className={`transition-all duration-500 ease-in-out ${isMarketDistributorSelected ? 'max-h-[1000px] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
-                                     {isMarketDistributorSelected && selectedDistributorToQuote && renderFormContainer(selectedDistributorToQuote)}
-                                </div>
+                                {selectedDistributorToQuote && !userDistributorsForBase.some(d => d.bandeira === selectedDistributorToQuote.bandeira) && (
+                                    <div className="p-6 animate-fade-in">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h2 className="text-lg font-bold text-slate-100">Cotação Avulsa: <span style={{ color: distributorColors[selectedDistributorToQuote.bandeira]?.background }}>{selectedDistributorToQuote.bandeira}</span></h2>
+                                        </div>
+                                        <QuoteInputForm 
+                                            distributor={selectedDistributorToQuote} 
+                                            initialPrices={getEffectivePricesForForm(selectedDistributorToQuote)} 
+                                            onPriceChange={(p, v) => {
+                                                const currentEffective = getEffectivePricesForForm(selectedDistributorToQuote);
+                                                setPendingQuotes(prev => ({ 
+                                                    ...prev, 
+                                                    [`${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}|${selectedQuoteDate}`]: { 
+                                                        ...(prev[`${selectedDistributorToQuote.bandeira}|${selectedDistributorToQuote.base}|${selectedQuoteDate}`] || currentEffective), 
+                                                        [p]: v 
+                                                    } 
+                                                }));
+                                            }}
+                                            onSubmit={handleQuoteSubmit} onCancel={() => setSelectedDistributorToQuote(null)} 
+                                            disabled={!marketDay.valid}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </main>

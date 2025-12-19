@@ -1,33 +1,32 @@
-
-import { FUEL_PRODUCTS } from '../constants/fuels';
-
-// Mapeamento: UI (Longo) -> Banco (Curto)
 export const FUEL_TO_CODE: Record<string, string> = {
-    'Gasolina Comum': 'GC',
-    'Gasolina Aditivada': 'GA',
-    'Etanol': 'E',
-    'Diesel S10': 'S10',
-    'Diesel S500': 'S500',
+  'Gasolina Comum': 'GC',
+  'Gasolina Aditivada': 'GA',
+  'Etanol': 'E',
+  'Diesel S10': 'S10',
+  'Diesel S500': 'S500',
 };
 
-// Mapeamento Inverso: Banco (Curto) -> UI (Longo)
-export const CODE_TO_FUEL: Record<string, string> = Object.entries(FUEL_TO_CODE).reduce((acc, [key, value]) => {
-    acc[value] = key;
-    return acc;
-}, {} as Record<string, string>);
-
-/**
- * Converte o nome do produto da UI para o código do banco.
- * Se não houver mapeamento, retorna o próprio valor (fallback).
- */
-export const mapFuelToCode = (fuelName: string): string => {
-    return FUEL_TO_CODE[fuelName?.trim()] || fuelName;
+export const CODE_TO_FUEL: Record<string, string> = {
+  'GC': 'Gasolina Comum',
+  'GA': 'Gasolina Aditivada',
+  'E': 'Etanol',
+  'S10': 'Diesel S10',
+  'S500': 'Diesel S500',
 };
 
-/**
- * Converte o código do banco para o nome do produto da UI.
- * Se não houver mapeamento, retorna o próprio valor.
- */
+export const mapFuelToCode = (fuel: string): string => {
+  if (!fuel) return '';
+  const trimmed = fuel.trim();
+  return FUEL_TO_CODE[trimmed] || trimmed.toUpperCase();
+};
+
 export const mapCodeToFuel = (code: string): string => {
-    return CODE_TO_FUEL[code] || code;
+  if (!code) return '';
+  const normalized = code.trim().toUpperCase();
+  if (['E', 'ET', 'ETA'].includes(normalized)) return 'Etanol';
+  if (['GC', 'GAS'].includes(normalized)) return 'Gasolina Comum';
+  if (['GA', 'GADA'].includes(normalized)) return 'Gasolina Aditivada';
+  if (['S10', 'D10'].includes(normalized)) return 'Diesel S10';
+  if (['S500', 'D500'].includes(normalized)) return 'Diesel S500';
+  return CODE_TO_FUEL[normalized] || code;
 };

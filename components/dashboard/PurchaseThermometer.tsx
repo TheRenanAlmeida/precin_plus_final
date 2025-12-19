@@ -1,12 +1,10 @@
 
 import React, { useEffect, useRef } from 'react';
 import type { FuelProduct } from '../../constants/fuels';
-import { formatPrice } from '../../utils/dataHelpers';
 import type { PurchaseGaugeMetrics } from '../../utils/fuelGauge';
 import { Tip } from '../common/Tip';
 import { TOOLTIP } from '../../constants/tooltips';
 
-// Declaração do ECharts global
 declare const echarts: any;
 
 export interface PurchaseThermometerData extends PurchaseGaugeMetrics {
@@ -14,14 +12,13 @@ export interface PurchaseThermometerData extends PurchaseGaugeMetrics {
   goodDistributors: string[];
 }
 
-interface PurchaseThermometerProps {
+export interface PurchaseThermometerProps {
   data: PurchaseThermometerData | null;
   selectedFuel: string;
-  onFuelChange: (fuel: string) => void;
-  availableFuels: string[];
+  onFuelChange?: (fuel: string) => void;
+  availableFuels?: readonly string[] | FuelProduct[];
 }
 
-// Função para gerar o texto descritivo
 function buildPriceLevelText(
   rating: 'muito_abaixo' | 'abaixo' | 'na_media' | 'acima' | 'muito_acima',
   percentile: number,
@@ -30,22 +27,22 @@ function buildPriceLevelText(
   const daysText = `nos últimos ${windowDays} dias`;
 
   if (percentile <= 0.01) {
-    return `O preço de hoje é o mais baixo observado ${daysText}.`;
+    return `O nível de mercado atual é o mais baixo registrado ${daysText}.`;
   }
   if (percentile >= 0.99) {
-    return `O preço de hoje é o mais alto observado ${daysText}.`;
+    return `O nível de mercado atual é o mais alto registrado ${daysText}.`;
   }
   if (rating === 'muito_abaixo' || rating === 'abaixo') {
     let pctLow = Math.round(percentile * 100);
     if (pctLow < 1) pctLow = 1;
-    return `O preço de hoje está entre os ${pctLow}% preços mais baixos observados ${daysText}.`;
+    return `A referência atual está entre os ${pctLow}% mais baixos registrados ${daysText}.`;
   }
   if (rating === 'muito_acima' || rating === 'acima') {
     let pctHigh = Math.round((1 - percentile) * 100);
     if (pctHigh < 1) pctHigh = 1;
-    return `O preço de hoje está entre os ${pctHigh}% preços mais altos observados ${daysText}.`;
+    return `A referência atual está entre os ${pctHigh}% mais altos registrados ${daysText}.`;
   }
-  return `O preço de hoje está próximo da mediana do mercado ${daysText}.`;
+  return `O nível de mercado atual está estável em relação à mediana registrada ${daysText}.`;
 }
 
 const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selectedFuel }) => {
@@ -70,27 +67,27 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
           type: 'gauge',
           startAngle: 180,
           endAngle: 0,
-          center: ['50%', '85%'], // Ajustado levemente para baixo para acomodar o tamanho reduzido
-          radius: '90%', // Reduzido em 25% (de 120% para 90%)
+          center: ['50%', '85%'],
+          radius: '90%',
           min: -2,
           max: 2,
           splitNumber: 8,
           axisLine: {
             lineStyle: {
-              width: 19, // Reduzido proporcionalmente (de 25 para 19)
+              width: 19,
               color: [
-                [0.25, '#16a34a'], // muito abaixo
-                [0.45, '#22c55e'], // abaixo
-                [0.55, '#eab308'], // centro/neutro
-                [0.75, '#f97316'], // acima
-                [1, '#ef4444'],    // muito acima
+                [0.25, '#16a34a'], // nível baixo
+                [0.45, '#22c55e'], // abaixo média
+                [0.55, '#eab308'], // na média (âmbar)
+                [0.75, '#f97316'], // acima média
+                [1, '#ef4444'],    // nível alto
               ],
             },
           },
           pointer: {
             icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
             length: '15%',
-            width: 11, // Reduzido proporcionalmente (de 15 para 11)
+            width: 11,
             offsetCenter: [0, '-60%'],
             itemStyle: { 
               color: 'auto',
@@ -101,11 +98,11 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
             },
           },
           axisTick: {
-            length: 9, // Reduzido proporcionalmente (de 12 para 9)
+            length: 9,
             lineStyle: { color: 'auto', width: 2 },
           },
           splitLine: {
-            length: 19, // Reduzido proporcionalmente (de 25 para 19)
+            length: 19,
             lineStyle: { color: 'auto', width: 3 },
           },
           axisLabel: {
@@ -114,13 +111,13 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
           title: {
             show: true,
             offsetCenter: [0, '-15%'],
-            fontSize: 10, // Reduzido de 12 para 10
+            fontSize: 10,
             color: '#94a3b8', 
             fontWeight: 500,
           },
           detail: {
             show: true,
-            fontSize: 21, // Reduzido de 28 para 21
+            fontSize: 21,
             fontWeight: 700,
             fontFamily: 'Inter, sans-serif',
             offsetCenter: [0, '-40%'],
@@ -164,13 +161,12 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
     );
   }
 
-  // Textos e Cores
   const ratingText = {
-      'muito_abaixo': 'Excelente Compra',
+      'muito_abaixo': 'Nível Muito Baixo',
       'abaixo': 'Abaixo da Média',
-      'na_media': 'Na Média',
+      'na_media': 'Dentro da Média',
       'acima': 'Acima da Média',
-      'muito_acima': 'Preço Alto'
+      'muito_acima': 'Nível Muito Alto'
   };
   
   const ratingColors = {
@@ -182,7 +178,7 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
   };
 
   const descriptiveText = buildPriceLevelText(data.rating, data.percentile, data.windowDays);
-  const textColorClass = data.rating === 'na_media' ? 'text-slate-500' : ratingColors[data.rating];
+  const textColorClass = ratingColors[data.rating];
 
   return (
     <div className="flex flex-col items-center h-full w-full">
@@ -202,7 +198,7 @@ const PurchaseThermometer: React.FC<PurchaseThermometerProps> = ({ data, selecte
             <div className={`text-lg font-bold uppercase tracking-wide ${ratingColors[data.rating]}`}>
                 {ratingText[data.rating]}
             </div>
-            <p className={`text-[10px] ${textColorClass} mt-1 max-w-[200px] leading-tight`}>
+            <p className={`text-[10px] ${textColorClass} mt-1 max-w-[200px] leading-tight font-medium`}>
                 {descriptiveText}
             </p>
         </div>

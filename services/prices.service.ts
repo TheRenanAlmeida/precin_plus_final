@@ -26,56 +26,57 @@ export const fetchUserDailyPricesForDate = async (userId: string, date: Date, si
         return { prices: {}, inputs: {} };
     }
 
-    const formattedDate = formatDateForInput(date);
+    try {
+        const formattedDate = formatDateForInput(date);
 
-    let query = supabase
-        .from('pplus_user_daily_prices')
-        .select('brand_name, product_name, price')
-        .eq('user_id', userId)
-        .eq('price_date', formattedDate);
-    
-    if (signal) {
-        query = query.abortSignal(signal);
+        let query = supabase
+            .from('pplus_user_daily_prices')
+            .select('brand_name, product_name, price')
+            .eq('user_id', userId)
+            .eq('price_date', formattedDate);
+        
+        if (signal) {
+            query = query.abortSignal(signal);
+        }
+
+        const { data: userPrices, error } = await query.returns<UserPriceRecord[]>();
+
+        if (error) {
+            // O Supabase/Postgrest pode retornar erros com mensagens variadas para aborts.
+            if (error.message && (error.message.includes('AbortError') || error.message.includes('aborted'))) {
+                throw new DOMException('Aborted', 'AbortError');
+            }
+            throw error;
+        }
+
+        const loadedPrices: UserPricesResponse['prices'] = {};
+        const loadedInputs: UserPricesResponse['inputs'] = {};
+
+        (userPrices ?? []).forEach(item => {
+            const { brand_name, product_name, price } = item;
+            if (!brand_name || !product_name || price === null) return;
+
+            if (!loadedPrices[brand_name]) {
+                loadedPrices[brand_name] = {};
+                loadedInputs[brand_name] = {};
+            }
+
+            const priceNum = Number(price);
+            if (!isNaN(priceNum)) {
+                loadedPrices[brand_name]![product_name] = priceNum;
+                const formattedValue = priceNum.toFixed(3).replace('.', ',');
+                loadedInputs[brand_name]![product_name] = formattedValue;
+            }
+        });
+
+        return { prices: loadedPrices, inputs: loadedInputs };
+    } catch (err: any) {
+        if (err.name === 'AbortError' || signal?.aborted) {
+            return { prices: {}, inputs: {} };
+        }
+        console.error("Error in fetchUserDailyPricesForDate:", err);
+        throw err;
     }
-
-    const { data: userPrices, error } = await query.returns<UserPriceRecord[]>();
-
-    if (error) {
-        // Verifica se o erro é devido ao cancelamento da requisição (AbortError)
-        // O Supabase/Postgrest pode retornar erros com mensagens variadas para aborts.
-        if (error.message && (error.message.includes('AbortError') || error.message.includes('aborted'))) {
-             // Lança como um DOMException AbortError padrão para ser capturado silenciosamente pelo hook
-             throw new DOMException('Aborted', 'AbortError');
-        }
-
-        // Aprimora o log para exibir a mensagem real do erro, evitando [object Object].
-        console.error("Error loading saved daily prices:", error.message || error);
-        // Lança o erro para ser tratado pela camada que chamou o serviço (o hook).
-        throw error;
-    }
-
-    const loadedPrices: UserPricesResponse['prices'] = {};
-    const loadedInputs: UserPricesResponse['inputs'] = {};
-
-    (userPrices ?? []).forEach(item => {
-        const { brand_name, product_name, price } = item;
-        if (!brand_name || !product_name || price === null) return;
-
-        if (!loadedPrices[brand_name]) {
-            loadedPrices[brand_name] = {};
-            loadedInputs[brand_name] = {};
-        }
-
-        const priceNum = Number(price);
-        if (!isNaN(priceNum)) {
-            loadedPrices[brand_name]![product_name] = priceNum;
-            // ALTERADO: Formata para 3 casas decimais no input
-            const formattedValue = priceNum.toFixed(3).replace('.', ',');
-            loadedInputs[brand_name]![product_name] = formattedValue;
-        }
-    });
-
-    return { prices: loadedPrices, inputs: loadedInputs };
 };
 
 
@@ -137,9 +138,13 @@ export const saveUserDailyPrices = async (
         return { error: null };
     }
 
-    return await supabase
-        .from('pplus_user_daily_prices')
-        .upsert(recordsToInsert, {
-            onConflict: 'user_id, price_date, base_name, brand_name, product_name',
-        });
+    try {
+        return await supabase
+            .from('pplus_user_daily_prices')
+            .upsert(recordsToInsert, {
+                onConflict: 'user_id, price_date, base_name, brand_name, product_name',
+            });
+    } catch (err: any) {
+        return { error: err };
+    }
 };

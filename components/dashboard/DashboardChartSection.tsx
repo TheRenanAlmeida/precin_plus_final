@@ -8,6 +8,7 @@ import type { FuelProduct } from '../../constants/fuels';
 import type { ChartSeries } from '../../types';
 import { Tip } from '../common/Tip';
 import { TOOLTIP } from '../../constants/tooltips';
+import FilterButton from '../common/FilterButton';
 
 interface DashboardChartSectionProps {
     selectedFuel: string;
@@ -43,6 +44,14 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
     handleChartExpand,
     purchaseThermometerData
 }) => {
+    const fuelTooltips: Record<string, string> = {
+        'Gasolina Comum': 'Ver gráfico de Gasolina Comum',
+        'Gasolina Aditivada': 'Ver gráfico de Gasolina Aditivada',
+        'Etanol': 'Ver gráfico de Etanol',
+        'Diesel S10': 'Ver gráfico de Diesel S10',
+        'Diesel S500': 'Ver gráfico de Diesel S500',
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Chart Column (Main) */}
@@ -63,19 +72,14 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
                         {/* Fuel Tabs inside Chart Card */}
                         <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide max-w-[200px] sm:max-w-none">
                             {products.map(fuel => (
-                                <button
+                                <FilterButton
                                     key={fuel}
                                     onClick={() => setSelectedFuel(fuel)}
-                                    className={`
-                                        px-2 py-1 text-[10px] font-semibold rounded-md border transition-all whitespace-nowrap
-                                        ${selectedFuel === fuel 
-                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/50' 
-                                            : 'bg-slate-800 text-slate-400 border-transparent hover:bg-slate-700'
-                                        }
-                                    `}
-                                >
-                                    {fuel === 'Gasolina Comum' ? 'GC' : fuel === 'Gasolina Aditivada' ? 'GA' : fuel === 'Etanol' ? 'Et' : fuel === 'Diesel S10' ? 'S10' : 'S500'}
-                                </button>
+                                    active={selectedFuel === fuel}
+                                    size="sm"
+                                    tooltip={fuelTooltips[fuel]}
+                                    label={fuel === 'Gasolina Comum' ? 'GC' : fuel === 'Gasolina Aditivada' ? 'GA' : fuel === 'Etanol' ? 'Et' : fuel === 'Diesel S10' ? 'S10' : 'S500'}
+                                />
                             ))}
                         </div>
                     </div>
@@ -85,20 +89,26 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
                       {/* Market Filters */}
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-500 uppercase">Mercado:</span>
-                        {dashboardSeriesConfig.filter(s => s.type === 'market').map(series => (
-                            <button
-                                key={series.key}
-                                onClick={() => toggleDashboardSeriesVisibility(series.key)}
-                                className={`flex items-center gap-2 px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all ${
-                                    series.isVisible
-                                    ? 'bg-slate-800 border-slate-700 text-slate-100'
-                                    : 'bg-transparent border-slate-800 text-slate-500 opacity-60 hover:opacity-100'
-                                }`}
-                            >
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: series.isVisible ? series.color : '#64748b' }}></div>
-                                <span>{series.name.replace('Preço ', '').replace(' (IQR)','')}</span>
-                            </button>
-                        ))}
+                        {dashboardSeriesConfig.filter(s => s.type === 'market').map(series => {
+                            const tooltipText = series.key === 'Preço Mínimo' ? TOOLTIP.MARKET_MIN : 
+                                               series.key === 'Preço Máximo' ? TOOLTIP.MARKET_MAX : 
+                                               TOOLTIP.MARKET_AVG;
+                            return (
+                                <FilterButton
+                                    key={series.key}
+                                    onClick={() => toggleDashboardSeriesVisibility(series.key)}
+                                    active={series.isVisible}
+                                    size="sm"
+                                    tooltip={tooltipText}
+                                    label={
+                                        <>
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: series.isVisible ? series.color : '#64748b' }}></div>
+                                            <span>{series.name.replace('Preço ', '').replace(' (IQR)','')}</span>
+                                        </>
+                                    }
+                                />
+                            );
+                        })}
                       </div>
                       
                       {dashboardSeriesConfig.some(s => s.type === 'distributor') && (
@@ -111,22 +121,23 @@ const DashboardChartSection: React.FC<DashboardChartSectionProps> = ({
                                 const imageUrl = distributorImages[originalName];
                                 
                                 return (
-                                <button
+                                <FilterButton
                                     key={series.key}
                                     onClick={() => toggleDashboardSeriesVisibility(series.key)}
-                                    className={`flex items-center gap-2 px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border transition-all ${
-                                        series.isVisible
-                                        ? 'bg-slate-800 border-slate-700 text-slate-100'
-                                        : 'bg-transparent border-slate-800 text-slate-500 opacity-60 hover:opacity-100'
-                                    }`}
-                                >
-                                    {imageUrl ? (
-                                        <img src={imageUrl} alt={series.name} className="w-4 h-4 object-contain" />
-                                    ) : (
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: series.isVisible ? series.color : '#64748b' }}></div>
-                                    )}
-                                    <span style={{ color: series.isVisible ? series.color : 'inherit' }}>{series.name}</span>
-                                </button>
+                                    active={series.isVisible}
+                                    size="sm"
+                                    tooltip={`Exibir/Ocultar sua cotação para ${series.name} no histórico.`}
+                                    label={
+                                        <>
+                                            {imageUrl ? (
+                                                <img src={imageUrl} alt={series.name} className="w-4 h-4 object-contain" />
+                                            ) : (
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: series.isVisible ? series.color : '#64748b' }}></div>
+                                            )}
+                                            <span style={{ color: series.isVisible ? series.color : 'inherit' }}>{series.name}</span>
+                                        </>
+                                    }
+                                />
                             )})}
                           </div>
                         </>

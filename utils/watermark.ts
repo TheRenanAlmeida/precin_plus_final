@@ -15,12 +15,12 @@ export const getSessionToken = (): string => {
   return token;
 };
 
-// Formata CNPJ mascarado: 12.345.678/0001-90 -> 12...1-90
-const maskCNPJ = (cnpj: string | null): string => {
+// Formata CNPJ completo com pontos e traços para melhor legibilidade na marca d'água
+const formatFullCNPJ = (cnpj: string | null): string => {
   if (!cnpj) return '****';
   const clean = cnpj.replace(/\D/g, '');
-  if (clean.length < 12) return clean; // Se for muito curto, mostra o que tem
-  return `${clean.slice(0, 2)}...${clean.slice(-4)}`;
+  if (clean.length !== 14) return clean; 
+  return clean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 };
 
 // Pega os últimos 8 caracteres do ID
@@ -29,24 +29,25 @@ const shortUID = (id: string): string => {
   return id.slice(-8).toUpperCase();
 };
 
-export const buildUserWatermark = (user: UserProfile, base?: string): { line1: string; line2: string } => {
-  const email = user.email ? user.email.split('@')[0] : 'usuario'; // Apenas a parte antes do @ para economizar espaço
-  const cnpj = user.cnpj ? `CNPJ ${maskCNPJ(user.cnpj)}` : 'CPF/CNPJ ****';
-  const baseName = base ? base.split(' - ')[0] : (user.preferencias?.[0]?.base.split(' - ')[0] || 'Geral');
-  
+export const buildUserWatermark = (user: UserProfile): { line1: string; line2: string; line3: string } => {
+  const name = user.nome || 'Usuário';
+  const cnpj = formatFullCNPJ(user.cnpj);
   const uid = shortUID(user.id);
   const session = getSessionToken();
   
-  // Timestamp arredondado por minuto (YYYY-MM-DD HH:mm)
+  // Data formatada como DD/MM/AAAA
   const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10);
-  const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('pt-BR');
 
-  // Linha 1: email | CNPJ **** | base
-  const line1 = `${email} | ${cnpj} | ${baseName}`;
+  // Estrutura de 3 Linhas solicitada:
+  // Linha 1: Cabeçalho
+  const line1 = "PRECIN PLUS • CONFIDENCIAL";
   
-  // Linha 2: UID XXXXXXXX | YYYY-MM-DD HH:mm | S:AB12
-  const line2 = `UID ${uid} | ${dateStr} ${timeStr} | S:${session}`;
+  // Linha 2: Nome do Usuário | SESSÃO (Sigla S:)
+  const line2 = `${name} | S: ${session}`;
 
-  return { line1, line2 };
+  // Linha 3: CNPJ | DATA | UID
+  const line3 = `${cnpj} | ${dateStr} | UID ${uid}`;
+
+  return { line1, line2, line3 };
 };

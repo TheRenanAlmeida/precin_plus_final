@@ -237,6 +237,7 @@ export interface DashboardState {
 export type ContractBase = "MIN" | "AVG";
 
 export type ContractRule = { 
+    id: string; // ID da Tabela (UUID) para exclusão precisa
     base: ContractBase; 
     spread: number; // Valor em R$, ex: 0.04
     updatedAt: string; // ISO String para auditoria

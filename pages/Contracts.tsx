@@ -7,10 +7,11 @@ import { supabase } from '../supabaseClient';
 import LoadingScreen from '../components/LoadingScreen';
 import NotificationToast from '../components/menu/NotificationToast';
 import { getDistributorStyle, getOriginalBrandName } from '../utils/styleManager';
-import { fetchUserContracts, upsertUserContracts, deleteContract } from '../services/contracts.service';
+import { fetchUserContracts, upsertUserContracts, deleteContractSafe } from '../services/contracts.service';
 import ContractInputForm from '../components/contracts/ContractInputForm';
 import { Tip } from '../components/common/Tip';
 import { TOOLTIP } from '../constants/tooltips';
+import { getErrorMessage } from '../utils/errorHelpers';
 
 interface ContractsPageProps {
     userProfile: UserProfile;
@@ -20,21 +21,6 @@ interface ContractsPageProps {
     goToAdmin: () => void;
     goToContracts: () => void;
 }
-
-const getErrorMessage = (error: any): string => {
-    if (typeof error === 'string') return error;
-    if (error?.message) {
-        if (typeof error.message === 'object') {
-            try { return JSON.stringify(error.message); } catch { return String(error.message); }
-        }
-        return String(error.message);
-    }
-    try {
-        return JSON.stringify(error);
-    } catch {
-        return 'Ocorreu um erro desconhecido.';
-    }
-};
 
 const ContractsPage: React.FC<ContractsPageProps> = ({ 
     userProfile, 
@@ -61,16 +47,13 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
         setTimeout(() => setNotification(null), 3000);
     };
 
-    // --- Effect 1: Inicializar Bases (Sem Fetch de Dados) ---
+    // --- Effect 1: Inicializar Bases ---
     useEffect(() => {
         if (!userProfile?.preferencias) return;
 
-        // Determine bases
         const bases = Array.from(new Set(userProfile.preferencias.map(p => p.base))).sort();
         setAvailableBases(bases);
         
-        // Se ainda não tiver base selecionada, seleciona a primeira
-        // Isso evita que a mudança de selectedBase cause loops se estivesse no mesmo effect do fetch
         if (bases.length > 0) {
             setSelectedBase((current) => {
                 if (!current || !bases.includes(current)) {
@@ -81,7 +64,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
         }
     }, [userProfile.preferencias]);
 
-    // --- Effect 2: Buscar Dados (Depende de selectedBase e userId) ---
+    // --- Effect 2: Buscar Dados ---
     useEffect(() => {
         if (!userProfile?.id || !selectedBase) {
             setLoading(false);
@@ -94,12 +77,10 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
         const fetchData = async () => {
             setLoading(true);
             try {
-                // 1. Load Contracts for the ACTIVE BASE (Resolves Priority: Base > '*')
                 const contractsData = await fetchUserContracts(userProfile.id, selectedBase, signal);
                 if (signal.aborted) return;
                 setContracts(contractsData);
 
-                // 2. Load Styles & Images
                 const [distRes, stylesRes] = await Promise.all([
                     supabase.from('Distribuidoras').select('Name, imagem').abortSignal(signal),
                     supabase.from('pplus_distributor_styles').select('name, bg_color, text_color, shadow_style').abortSignal(signal)
@@ -122,7 +103,6 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                 }
 
             } catch (err: any) {
-                // Silencia AbortError
                 if (signal.aborted || err.name === 'AbortError' || err.message?.includes('Aborted')) {
                     return;
                 }
@@ -135,7 +115,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
 
         fetchData();
         return () => controller.abort();
-    }, [userProfile.id, selectedBase]); // Dependências estáveis
+    }, [userProfile.id, selectedBase]);
 
     // --- Derived Data ---
     const userDistributorsForBase = useMemo(() => {
@@ -164,13 +144,9 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
         }
 
         try {
-            // Salva usando a base selecionada (agora obrigatória no schema)
             await upsertUserContracts(userProfile.id, selectedBase, items);
-            
-            // Recarrega os contratos para refletir a atualização
             const updatedContracts = await fetchUserContracts(userProfile.id, selectedBase);
             setContracts(updatedContracts);
-            
             showNotification('success', `Contrato salvo para a base ${selectedBase}!`);
             setSelectedDistributor(null);
         } catch (err: any) {
@@ -179,17 +155,36 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
         }
     };
 
-    const handleRemoveContract = async (productName: string) => {
-        if (!selectedBase || !selectedDistributor) return;
+    const handleRemoveContract = async (
+        contractId: string | undefined,
+        productName: string,
+        brandName: string
+    ) => {
+        console.log('[HANDLE REMOVE] Iniciando exclusão...', { contractId, productName, brandName, selectedBase });
+        
         try {
-            await deleteContract(userProfile.id, selectedBase, selectedDistributor.bandeira, productName);
-            // Recarrega os contratos
-            const updatedContracts = await fetchUserContracts(userProfile.id, selectedBase);
-            setContracts(updatedContracts);
-            showNotification('success', 'Contrato excluído.');
+            const deletedCount = await deleteContractSafe({
+                userId: userProfile.id,
+                baseName: selectedBase,
+                brandName,
+                productName,
+                contractId,
+            });
+
+            console.log('[HANDLE REMOVE] Resultado do banco:', deletedCount);
+
+            if (deletedCount <= 0) {
+                throw new Error('Nenhum registro foi removido no banco. Verifique se o contrato pertence a você e está na base correta.');
+            }
+
+            // REFETCH OBRIGATÓRIO PARA SINCRONIZAR UI COM BANCO
+            const updated = await fetchUserContracts(userProfile.id, selectedBase);
+            setContracts(updated);
+            showNotification('success', `Contrato de ${productName} excluído com sucesso.`);
         } catch (err: any) {
-            console.error(err);
-            showNotification('error', `Erro ao excluir contrato: ${getErrorMessage(err)}`);
+            console.error('[HANDLE REMOVE] Erro fatal:', err);
+            showNotification('error', `Falha na exclusão: ${getErrorMessage(err)}`);
+            throw err; 
         }
     };
 
@@ -197,7 +192,11 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200">
-            <Header userProfile={userProfile} className="bg-slate-950 border-b border-slate-800" />
+            <Header 
+                userProfile={userProfile} 
+                className="bg-slate-950 border-b border-slate-800"
+                onLogoClick={goBack}
+            />
             <div className="max-w-[1600px] mx-auto py-8 px-4 sm:px-6 lg:px-8">
                 
                 <div className="text-center mb-8">
@@ -206,7 +205,6 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* Navigation Sidebar */}
                     <NavigationSidebar 
                         goToDashboard={goToDashboard}
                         goToHistory={goToHistory}
@@ -216,19 +214,13 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                     />
                     
                     <main className="lg:col-span-9">
-                        
-                        {/* --- TOP FILTER BAR (Consistent with History/Dashboard) --- */}
                         <div className="flex flex-col xl:flex-row gap-4 xl:items-center justify-between bg-slate-900/50 backdrop-blur-sm rounded-xl p-3 border border-slate-800 shadow-sm sticky top-0 z-30 mb-6">
                             <div className="flex flex-wrap items-center gap-3">
-                                {/* Menu Button */}
                                 <button onClick={goBack} className="text-xs font-bold text-slate-400 hover:text-slate-100 uppercase tracking-wide transition-colors flex items-center gap-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                                     Menu
                                 </button>
-                                
                                 <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
-
-                                {/* Base Selector */}
                                 <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-1.5 border border-slate-700">
                                     <Tip text={TOOLTIP.CONTRACT_BASE_SELECTOR}>
                                         <span className="text-xs font-bold text-slate-400 uppercase">Base</span>
@@ -237,7 +229,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                                         value={selectedBase}
                                         onChange={(e) => {
                                             setSelectedBase(e.target.value);
-                                            setSelectedDistributor(null); // Reset selection on base change
+                                            setSelectedDistributor(null);
                                         }}
                                         disabled={loading || availableBases.length === 0}
                                         className="bg-transparent text-slate-100 text-sm font-semibold focus:outline-none cursor-pointer"
@@ -251,8 +243,6 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                            
-                            {/* LISTA DE DISTRIBUIDORAS (ESQUERDA) */}
                             <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 h-fit overflow-hidden p-6">
                                 <div className="flex flex-col mb-4 border-b border-slate-800 pb-3">
                                     <h2 className="text-xl font-bold text-slate-100 leading-tight">
@@ -298,15 +288,9 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                                             </div>
                                         );
                                     })}
-                                    {userDistributorsForBase.length === 0 && (
-                                        <p className="text-sm text-slate-500 italic text-center py-4">
-                                            Nenhuma distribuidora encontrada nesta base.
-                                        </p>
-                                    )}
                                 </div>
                             </div>
 
-                            {/* ÁREA DE FORMULÁRIO (DIREITA) */}
                             <div className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 h-fit overflow-hidden">
                                 <div className={`transition-all duration-500 ease-in-out ${!selectedDistributor ? 'max-h-0 opacity-0 invisible' : 'max-h-[1000px] opacity-100 visible'}`}>
                                     {selectedDistributor && (
@@ -318,9 +302,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                                                     <h2 className="text-lg font-bold text-slate-100">
                                                         Contrato: <span style={{ color: distributorColors[selectedDistributor.bandeira]?.background }}>{selectedDistributor.bandeira}</span>
                                                     </h2>
-                                                    <p className="text-sm text-slate-400">
-                                                        Base: {selectedDistributor.base}
-                                                    </p>
+                                                    <p className="text-sm text-slate-400">Base: {selectedDistributor.base}</p>
                                                 </div>
                                             </div>
                                             <div className="p-6 bg-slate-900/50">
@@ -335,14 +317,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({
                                         </div>
                                     )}
                                 </div>
-                                {!selectedDistributor && (
-                                    <div className="p-10 flex flex-col items-center justify-center text-slate-500 h-full min-h-[300px]">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                        <p className="text-sm">Selecione uma distribuidora ao lado para configurar o contrato.</p>
-                                    </div>
-                                )}
                             </div>
-
                         </div>
                     </main>
                 </div>

@@ -1,15 +1,16 @@
 
 /**
- * Formats a Date object into a "YYYY-MM-DD" string, adjusted for the local timezone.
- * This is crucial for correctly querying the database, which expects dates in this format
- * without timezone information.
- * @param date - The Date object to format.
- * @returns A string in "YYYY-MM-DD" format.
+ * Formata um objeto Date para uma string "YYYY-MM-DD", ajustado para a data LOCAL do dispositivo.
+ * Crucial para bater com a data do <input type="date"> e evitar que a data mude 
+ * precocemente para o dia seguinte devido ao fuso UTC.
+ * @param date - O objeto Date a ser formatado.
+ * @returns Uma string no formato "YYYY-MM-DD".
  */
 export const formatDateForInput = (date: Date): string => {
-    // Adjust for timezone offset to display the correct local date in the input
-    const adjustedDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-    return adjustedDate.toISOString().split("T")[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 export const BRAZIL_TZ_LABEL = "Horário de Brasília";

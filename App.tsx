@@ -8,6 +8,7 @@ import { UserProfile, BandeiraBasePair } from './types';
 import LoadingScreen from './components/LoadingScreen';
 import ErrorScreen from './components/ErrorScreen';
 import { TooltipProvider } from './components/ui/tooltip'; 
+import { getErrorMessage } from './utils/errorHelpers';
 
 // Páginas do fluxo
 import AuthPage from './pages/AuthPage';
@@ -36,40 +37,6 @@ type UserProfileResponse = {
     preferencias: any; 
     atualizado_em?: string;
 };
-
-const getErrorMessage = (error: unknown): string => {
-    if (!error) return 'Erro desconhecido.';
-    
-    if (error instanceof Error) {
-        return error.message;
-    }
-    if (typeof error === 'string') {
-        return error;
-    }
-    if (typeof error === 'object') {
-        const anyError = error as any;
-        // Tenta extrair mensagem de campos comuns de erro
-        if (anyError.message) {
-            if (typeof anyError.message === 'object') {
-                try { return JSON.stringify(anyError.message); } catch { return String(anyError.message); }
-            }
-            return String(anyError.message);
-        }
-        if (anyError.error_description) return String(anyError.error_description);
-        if (anyError.details) return String(anyError.details);
-        if (anyError.msg) return String(anyError.msg);
-        
-        // Se for um objeto genérico, tenta JSON stringify
-        try {
-            const json = JSON.stringify(error);
-            if (json !== '{}') return json;
-        } catch {}
-    }
-    
-    // Fallback final
-    return String(error);
-};
-
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -309,7 +276,16 @@ export default function App() {
             return <OnboardingSetupPage userProfile={userProfile} onOnboardingComplete={() => fetchUserProfile(session.user)} />;
         }
     
-        const menuProps = { goToDashboard, goToHistory, goToContracts, goToAdmin, userProfile };
+        const menuProps = { 
+            goToDashboard, 
+            goToHistory, 
+            goToContracts, 
+            goToAdmin, 
+            userProfile,
+            availableBases,
+            selectedBase,
+            setSelectedBase: handleSetSelectedBase
+        };
     
         switch (currentView) {
           case 'menu':

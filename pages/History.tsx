@@ -10,9 +10,9 @@ import HistoryDataTable from '../components/historico/HistoryDataTable';
 import HistorySummaryCards from '../components/historico/HistorySummaryCards';
 import TableSkeletonLoader from '../components/skeletons/TableSkeletonLoader';
 import { getOriginalBrandName } from '../utils/styleManager';
-// PriceWatermarkedSection removed from here as it's now internal to child components
 import { Tip } from '../components/common/Tip';
 import { TOOLTIP } from '../constants/tooltips';
+import FilterButton from '../components/common/FilterButton';
 
 interface HistoryProps {
     userProfile: UserProfile;
@@ -56,16 +56,8 @@ const History: React.FC<HistoryProps> = ({
     goToContracts
 }) => {
     // --- UI State ---
-    const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-        try {
-            const raw = localStorage.getItem('precin_history_visible_columns');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) return parsed;
-            }
-        } catch {}
-        return ['seu_preco', 'market_min', 'market_avg', 'market_max'];
-    });
+    // Colunas de mercado agora são fixas e sempre visíveis na tabela
+    const visibleColumns = useMemo(() => ['seu_preco', 'market_min', 'market_avg', 'market_max'], []);
 
     const [pendingStartDate, setPendingStartDate] = useState(startDate);
     const [pendingEndDate, setPendingEndDate] = useState(endDate);
@@ -114,10 +106,6 @@ const History: React.FC<HistoryProps> = ({
         } catch {}
         setSelectedTableDistributors(initialSet);
     }, [displayNames]);
-
-    useEffect(() => {
-        localStorage.setItem('precin_history_visible_columns', JSON.stringify(visibleColumns));
-    }, [visibleColumns]);
 
     useEffect(() => {
         if (displayNames.length > 0) {
@@ -186,19 +174,13 @@ const History: React.FC<HistoryProps> = ({
     const handleSelectAllDistributors = () => setSelectedTableDistributors(new Set(displayNames));
     const handleClearAllDistributors = () => setSelectedTableDistributors(new Set());
 
-    const toggleGlobalMarketMetric = (metricKey: 'market_min' | 'market_avg' | 'market_max') => {
-        setVisibleColumns(prev => 
-            prev.includes(metricKey) 
-                ? prev.filter(k => k !== metricKey) 
-                : [...prev, metricKey]
-        );
-    };
-
-    const isMarketActive = (key: string) => visibleColumns.includes(key);
-
     return (
         <div className="font-sans antialiased bg-slate-950 text-slate-200 min-h-screen pb-10">
-            <Header userProfile={userProfile} className="bg-slate-950 border-b border-slate-800" />
+            <Header 
+                userProfile={userProfile} 
+                className="bg-slate-950 border-b border-slate-800"
+                onLogoClick={goBack}
+            />
             
             <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 
@@ -262,22 +244,20 @@ const History: React.FC<HistoryProps> = ({
                         </div>
 
                         <div className="relative" ref={distributorFilterRef}>
-                            <button
+                            <FilterButton 
                                 onClick={() => setIsDistributorFilterOpen(!isDistributorFilterOpen)}
-                                className={`
-                                    flex items-center gap-2 rounded-lg px-3 py-1.5 border text-xs font-bold uppercase transition-colors
-                                    ${isDistributorFilterOpen 
-                                        ? 'bg-slate-700 border-slate-600 text-white' 
-                                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                                    }
-                                `}
-                            >
-                                <span>Distribuidoras</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums font-sans ${selectedTableDistributors.size > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
-                                    {selectedTableDistributors.size}/{displayNames.length}
-                                </span>
-                                <svg className={`w-3 h-3 transition-transform ${isDistributorFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                            </button>
+                                active={isDistributorFilterOpen}
+                                tooltip="Filtrar quais distribuidoras aparecem no gráfico e na tabela histórica."
+                                label={
+                                    <>
+                                        <span>Distribuidoras</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums font-sans ${selectedTableDistributors.size > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
+                                            {selectedTableDistributors.size}/{displayNames.length}
+                                        </span>
+                                        <svg className={`w-3 h-3 transition-transform ${isDistributorFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                                    </>
+                                }
+                            />
 
                             {isDistributorFilterOpen && (
                                 <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 flex flex-col max-h-[400px]">
@@ -314,7 +294,7 @@ const History: React.FC<HistoryProps> = ({
                                                     <div 
                                                         className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 bg-transparent'}`}
                                                     >
-                                                        {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
+                                                        {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
                                                     </div>
                                                     
                                                     <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
@@ -332,29 +312,6 @@ const History: React.FC<HistoryProps> = ({
                                     </div>
                                 </div>
                             )}
-                        </div>
-                        
-                        <div className="h-6 w-px bg-slate-700 hidden sm:block"></div>
-
-                        <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1">
-                            <button
-                                onClick={() => toggleGlobalMarketMetric('market_min')}
-                                className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${isMarketActive('market_min') ? 'bg-slate-600 text-emerald-300 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                                Mínima
-                            </button>
-                            <button
-                                onClick={() => toggleGlobalMarketMetric('market_avg')}
-                                className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${isMarketActive('market_avg') ? 'bg-slate-600 text-blue-300 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                                Média
-                            </button>
-                            <button
-                                onClick={() => toggleGlobalMarketMetric('market_max')}
-                                className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${isMarketActive('market_max') ? 'bg-slate-600 text-rose-300 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                                Máxima
-                            </button>
                         </div>
                     </div>
                 </div>

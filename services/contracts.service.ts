@@ -1,194 +1,184 @@
-
 import { supabase } from '../supabaseClient';
 import type { UserContracts, ContractBase } from '../types';
 import { mapFuelToCode, mapCodeToFuel } from '../utils/fuelMappers';
 
+const norm = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+const clampSpread = (spread: number): number => {
+  if (!Number.isFinite(spread)) return 0;
+  const clamped = Math.max(0, Math.min(0.99, spread));
+  return parseFloat(clamped.toFixed(4));
+};
+
+const isContractBase = (v: any): v is ContractBase => v === 'MIN' || v === 'AVG';
+
 /**
- * Busca os contratos do usuário e calcula os contratos efetivos para uma base específica.
- * Lógica: Carrega contratos da base solicitada E contratos genéricos ('*').
- * Prioridade: Contrato específico da base > Contrato genérico (*).
+ * Mapeia siglas que podem existir no banco por inserções manuais ou legadas
  */
-export const fetchUserContracts = async (userId: string, baseName?: string, signal?: AbortSignal): Promise<UserContracts> => {
-    let query = supabase
-        .from('pplus_contracts')
-        .select('base_name, brand_name, product_name, base_ref, spread, updated_at')
-        .eq('user_id', userId);
+const legacyCandidates = (code: string) => {
+  const c = code.trim().toUpperCase();
+  const set = new Set<string>([c]);
 
-    // Se uma base for fornecida, filtramos por ela E pelo genérico '*'
-    if (baseName) {
-        query = query.in('base_name', [baseName, '*']);
+  // Etanol legado
+  if (c === 'E') {
+    set.add('ET');
+    set.add('ETA');
+  }
+
+  // Diesel legado
+  if (c === 'S10') set.add('D10');
+  if (c === 'S500') set.add('D500');
+
+  return Array.from(set);
+};
+
+export const fetchUserContracts = async (
+  userId: string,
+  baseName?: string,
+  signal?: AbortSignal
+): Promise<UserContracts> => {
+  const safeBase = norm(baseName);
+  if (!safeBase || safeBase === '*') return {};
+
+  let query = supabase
+    .from('pplus_contracts')
+    .select('id, base_name, brand_name, product_name, base_ref, spread, updated_at')
+    .eq('user_id', userId)
+    .eq('base_name', safeBase);
+
+  if (signal) query = query.abortSignal(signal);
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (error.message?.includes('AbortError') || error.message?.includes('aborted')) {
+      throw new DOMException('Aborted', 'AbortError');
     }
+    throw new Error(error.message || `Erro ao carregar contratos.`);
+  }
 
-    if (signal) {
-        query = query.abortSignal(signal);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        // Verifica se o erro é um AbortError (cancelamento de requisição)
-        // O Supabase/Postgrest pode retornar erros com mensagens variadas para aborts.
-        if (error.message && (error.message.includes('AbortError') || error.message.includes('aborted') || error.code === '20')) {
-             // Lança como exceção para ser capturado pelo chamador, mas evita log de erro
-             // Usamos DOMException para manter compatibilidade com verificações padrão de AbortError
-             throw new DOMException('Aborted', 'AbortError');
-        }
-
-        // Safe logging to avoid [object Object]
-        console.error("[Contracts Service] Fetch Error:", JSON.stringify(error, null, 2));
-        throw new Error(`Erro ao carregar contratos: ${error.message}`);
-    }
-
-    const contracts: UserContracts = {};
-
-    // Helper para processar o registro e adicionar ao mapa
-    const processRow = (row: any) => {
-        // MAPPER: Converte código do banco ('GC') para nome da UI ('Gasolina Comum') para uso no frontend
-        const uiProductName = mapCodeToFuel(row.product_name);
-
-        if (!contracts[row.brand_name]) {
-            contracts[row.brand_name] = {};
-        }
-        contracts[row.brand_name][uiProductName] = {
-            base: row.base_ref as ContractBase,
-            spread: Number(row.spread),
-            updatedAt: row.updated_at
-        };
+  const contracts: UserContracts = {};
+  (data || []).forEach((row: any) => {
+    const brand = norm(row.brand_name);
+    const uiFuelName = mapCodeToFuel(norm(row.product_name));
+    
+    if (!contracts[brand]) contracts[brand] = {};
+    
+    contracts[brand][uiFuelName] = {
+      id: row.id,
+      base: isContractBase(row.base_ref) ? row.base_ref : 'AVG',
+      spread: clampSpread(Number(row.spread)),
+      updatedAt: row.updated_at,
     };
+  });
 
-    // 1. Processa primeiro os genéricos ('*') para servirem de base
-    const genericContracts = (data || []).filter((r: any) => r.base_name === '*');
-    genericContracts.forEach(processRow);
-
-    // 2. Processa os específicos da base selecionada (sobrescreve os genéricos se houver conflito)
-    if (baseName) {
-        const specificContracts = (data || []).filter((r: any) => r.base_name === baseName);
-        specificContracts.forEach(processRow);
-    }
-
-    return contracts;
+  return contracts;
 };
 
 /**
- * Salva múltiplos contratos de uma vez (Upsert)
+ * IMPLEMENTAÇÃO V0 DEFINITIVA - RECONSTRUÍDA DO ZERO
+ * Exclui um contrato e retorna a quantidade de linhas afetadas.
  */
+export const deleteContractSafe = async (params: {
+  userId: string;
+  baseName: string;
+  brandName: string;
+  productName: string; // nome UI ("Gasolina Comum", etc.)
+  contractId?: string;
+}): Promise<number> => {
+  const userId = norm(params.userId);
+  const baseName = norm(params.baseName);
+  const brandName = norm(params.brandName);
+  const productName = norm(params.productName);
+  const contractId = norm(params.contractId);
+
+  if (!userId) throw new Error('Delete: userId vazio.');
+  if (!baseName || baseName === '*') throw new Error('Delete: baseName inválida.');
+  if (!brandName) throw new Error('Delete: brandName vazio.');
+  if (!productName) throw new Error('Delete: productName vazio.');
+
+  const code = norm(mapFuelToCode(productName)).toUpperCase();
+  const productCandidates = legacyCandidates(code);
+
+  console.log('[SERVICE DELETE] start', { contractId, userId, baseName, brandName, productName, candidates: productCandidates });
+
+  // 1) Melhor caminho: por ID
+  if (contractId && contractId.length > 20) {
+    const { data, error } = await supabase
+      .from('pplus_contracts')
+      .delete()
+      .eq('id', contractId)
+      .eq('user_id', userId) // garante owner (RLS)
+      .select('id');
+
+    console.log('[SERVICE DELETE] by id result', { deleted: data?.length, error });
+
+    if (error) throw new Error(error.message);
+
+    const deleted = Array.isArray(data) ? data.length : 0;
+    if (deleted > 0) return deleted;
+  }
+
+  // 2) Fallback por chave composta
+  const { data: data2, error: error2 } = await supabase
+    .from('pplus_contracts')
+    .delete()
+    .eq('user_id', userId)
+    .eq('base_name', baseName)
+    .ilike('brand_name', brandName) // case-insensitive
+    .in('product_name', productCandidates)
+    .select('id');
+
+  console.log('[SERVICE DELETE] fallback result', { deleted: data2?.length, error: error2 });
+
+  if (error2) throw new Error(error2.message);
+
+  return Array.isArray(data2) ? data2.length : 0;
+};
+
 export const upsertUserContracts = async (
-    userId: string, 
-    baseName: string,
-    items: Array<{ brand_name: string; product_name: string; base_ref: ContractBase; spread: number }>
+  userId: string,
+  baseName: string,
+  items: Array<{ brand_name: string; product_name: string; base_ref: ContractBase; spread: number }>
 ) => {
-    const rowsToInsert = items.map(item => ({
+  const safeBase = norm(baseName);
+  const rowsToInsert = items.map((item) => ({
+    user_id: userId,
+    base_name: safeBase,
+    brand_name: norm(item.brand_name),
+    product_name: mapFuelToCode(item.product_name), 
+    base_ref: item.base_ref,
+    spread: clampSpread(item.spread), 
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('pplus_contracts').upsert(rowsToInsert, {
+    onConflict: 'user_id,base_name,brand_name,product_name',
+  });
+
+  if (error) throw new Error(error.message);
+};
+
+export const batchUpsertContracts = async (userId: string, contracts: UserContracts, targetBase: string) => {
+  const rowsToInsert: any[] = [];
+  Object.keys(contracts).forEach(brand => {
+    Object.keys(contracts[brand]).forEach(fuelName => {
+      const rule = contracts[brand][fuelName];
+      rowsToInsert.push({
         user_id: userId,
-        base_name: baseName, 
-        brand_name: item.brand_name,
-        // MAPPER: Converte nome da UI ('Gasolina Comum') para código do banco ('GC')
-        product_name: mapFuelToCode(item.product_name), 
-        base_ref: item.base_ref,
-        spread: item.spread,
-        updated_at: new Date().toISOString()
-    }));
-
-    const { error } = await supabase
-        .from('pplus_contracts')
-        .upsert(rowsToInsert, {
-            // Constraint correta para evitar duplicação
-            onConflict: 'user_id,base_name,brand_name,product_name'
-        });
-
-    if (error) {
-        console.error("[Contracts Service] Batch Upsert Error:", JSON.stringify(error, null, 2));
-        throw new Error(`Erro ao salvar contratos: ${error.message}`);
-    }
-};
-
-/**
- * Upsert a single contract
- */
-export const upsertContract = async (
-    userId: string, 
-    baseName: string,
-    brandName: string, 
-    productName: string, 
-    base: ContractBase, 
-    spread: number
-) => {
-    const { error } = await supabase
-        .from('pplus_contracts')
-        .upsert({
-            user_id: userId,
-            base_name: baseName,
-            brand_name: brandName,
-            // MAPPER: Converte para código
-            product_name: mapFuelToCode(productName),
-            base_ref: base,
-            spread: spread,
-            updated_at: new Date().toISOString()
-        }, {
-            onConflict: 'user_id,base_name,brand_name,product_name'
-        });
-
-    if (error) {
-        console.error("[Contracts Service] Upsert Error:", JSON.stringify(error, null, 2));
-        throw new Error(`Erro ao salvar contrato: ${error.message}`);
-    }
-};
-
-/**
- * Delete a single contract
- */
-export const deleteContract = async (userId: string, baseName: string, brandName: string, productName: string) => {
-    const { error } = await supabase
-        .from('pplus_contracts')
-        .delete()
-        .match({
-            user_id: userId,
-            base_name: baseName,
-            brand_name: brandName,
-            // MAPPER: Converte para código para encontrar o registro correto
-            product_name: mapFuelToCode(productName)
-        });
-
-    if (error) {
-        console.error("[Contracts Service] Delete Error:", JSON.stringify(error, null, 2));
-        throw new Error(`Erro ao remover contrato: ${error.message}`);
-    }
-};
-
-/**
- * Batch upsert contracts (from import / full JSON)
- */
-export const batchUpsertContracts = async (userId: string, contracts: UserContracts, defaultBase: string = '*') => {
-    const rowsToInsert: any[] = [];
-
-    Object.keys(contracts).forEach(brand => {
-        const products = contracts[brand];
-        Object.keys(products).forEach(product => {
-            const rule = products[product];
-            if (rule && rule.base && typeof rule.spread === 'number') {
-                rowsToInsert.push({
-                    user_id: userId,
-                    base_name: defaultBase, 
-                    brand_name: brand,
-                    // MAPPER: Converte para código
-                    product_name: mapFuelToCode(product),
-                    base_ref: rule.base,
-                    spread: rule.spread,
-                    updated_at: new Date().toISOString()
-                });
-            }
-        });
+        base_name: targetBase,
+        brand_name: brand,
+        product_name: mapFuelToCode(fuelName),
+        base_ref: rule.base,
+        spread: clampSpread(rule.spread),
+        updated_at: new Date().toISOString(),
+      });
     });
+  });
 
-    if (rowsToInsert.length === 0) return;
-
-    const { error } = await supabase
-        .from('pplus_contracts')
-        .upsert(rowsToInsert, {
-            onConflict: 'user_id,base_name,brand_name,product_name'
-        });
-
-    if (error) {
-        console.error("[Contracts Service] Import Error:", JSON.stringify(error, null, 2));
-        throw new Error(`Erro ao importar contratos: ${error.message}`);
-    }
+  if (rowsToInsert.length > 0) {
+    await supabase.from('pplus_contracts').upsert(rowsToInsert, {
+      onConflict: 'user_id,base_name,brand_name,product_name',
+    });
+  }
 };

@@ -3,43 +3,26 @@ import { useState, useEffect, useCallback } from 'react';
 import type { UserContracts, ContractBase } from '../types';
 import * as contractsService from '../services/contracts.service';
 
-/**
- * Hook para gerenciar contratos.
- * @param userId ID do usuário
- * @param baseName (Opcional) Se fornecido, o hook carrega os contratos efetivos para essa base (Combinando Específicos + Genéricos '*').
- */
 export const useContracts = (userId: string | undefined, baseName?: string) => {
     const [contracts, setContracts] = useState<UserContracts>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const getSafeErrorMessage = (err: any): string => {
-        if (typeof err === 'string') return err;
-        if (err?.message) {
-             if (typeof err.message === 'object') {
-                 try { return JSON.stringify(err.message); } catch { return String(err.message); }
-             }
-             return String(err.message);
-        }
-        return 'Erro desconhecido ao processar contratos.';
-    };
-
-    // Carrega contratos do Supabase
     const loadContracts = useCallback(async () => {
-        if (!userId) {
+        if (!userId || !baseName || baseName === '*') {
             setLoading(false);
+            setContracts({});
             return;
         }
         
         try {
             setLoading(true);
-            // Passa a baseName para o serviço resolver a prioridade (* vs Base Específica)
             const data = await contractsService.fetchUserContracts(userId, baseName);
             setContracts(data);
             setError(null);
         } catch (err: any) {
-            console.error("Failed to load contracts:", err);
-            setError(getSafeErrorMessage(err));
+            if (err.name === 'AbortError') return;
+            setError(err?.message || 'Erro ao carregar contratos.');
         } finally {
             setLoading(false);
         }
@@ -49,42 +32,50 @@ export const useContracts = (userId: string | undefined, baseName?: string) => {
         loadContracts();
     }, [loadContracts]);
 
-    const saveContract = useCallback(async (targetBase: string, brandName: string, fuelType: string, base: ContractBase, spread: number) => {
-        if (!userId) return;
+    const saveContract = useCallback(async (base: string, brand: string, fuel: string, baseRef: ContractBase, spread: number) => {
+        if (!userId || !base || base === '*') return;
         try {
-            await contractsService.upsertContract(userId, targetBase, brandName, fuelType, base, spread);
-            await loadContracts(); 
-            return true;
+            await contractsService.upsertUserContracts(userId, base, [{
+                brand_name: brand,
+                product_name: fuel,
+                base_ref: baseRef,
+                spread: spread
+            }]);
+            await loadContracts();
         } catch (err: any) {
-            console.error("Failed to save contract:", err);
             throw err;
         }
     }, [userId, loadContracts]);
 
-    const removeContract = useCallback(async (targetBase: string, brandName: string, fuelType: string) => {
-        if (!userId) return;
+    const removeContract = useCallback(async (params: { contractId?: string, brandName?: string, productName?: string }) => {
+        if (!userId || !baseName) return false;
+        
         try {
-            await contractsService.deleteContract(userId, targetBase, brandName, fuelType);
+            // Garante que o userId do hook seja usado
+            await contractsService.deleteContractSafe({
+                userId,
+                baseName,
+                brandName: params.brandName || '',
+                productName: params.productName || '',
+                contractId: params.contractId
+            });
+            
             await loadContracts();
             return true;
         } catch (err: any) {
-            console.error("Failed to remove contract:", err);
+            console.error("Remove contract error:", err);
             throw err;
         }
-    }, [userId, loadContracts]);
+    }, [userId, baseName, loadContracts]);
 
     const importContracts = useCallback(async (jsonString: string) => {
-        if (!userId) return false;
+        if (!userId || !baseName || baseName === '*') return false;
         try {
             const parsed: UserContracts = JSON.parse(jsonString);
-            if (typeof parsed !== 'object' || parsed === null) throw new Error("JSON inválido");
-            
-            // Importa como genérico '*' por padrão se não houver contexto de base
-            await contractsService.batchUpsertContracts(userId, parsed, baseName || '*');
+            await contractsService.batchUpsertContracts(userId, parsed, baseName);
             await loadContracts();
             return true;
         } catch (e) {
-            console.error("Invalid JSON or DB error during import", e);
             return false;
         }
     }, [userId, baseName, loadContracts]);

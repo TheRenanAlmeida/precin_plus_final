@@ -7,15 +7,14 @@ interface HeaderProps {
     userProfile?: UserProfile | null;
     children?: React.ReactNode;
     className?: string;
+    onLogoClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ userProfile, children, className }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, children, className, onLogoClick }) => {
     const handleLogout = async () => {
         await supabase.auth.signOut();
     };
     
-    // Se className for fornecido, usa ele. Se não, usa a cor da marca definida no tailwind.config (brand).
-    // Dashboard sobrescreve a cor para slate-950.
     const headerClass = className 
         ? `shadow-md relative z-50 ${className}`
         : "bg-brand shadow-md relative z-50";
@@ -25,7 +24,14 @@ const Header: React.FC<HeaderProps> = ({ userProfile, children, className }) => 
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center">
-                        <img src="https://i.imgur.com/scv57na.png" alt="precin+" className="h-14 w-auto" />
+                        <button 
+                            onClick={onLogoClick}
+                            className={`transition-transform active:scale-95 focus:outline-none ${onLogoClick ? 'cursor-pointer' : 'cursor-default'}`}
+                            disabled={!onLogoClick}
+                            title={onLogoClick ? "Ir para o Menu Principal" : ""}
+                        >
+                            <img src="https://i.imgur.com/scv57na.png" alt="precin+" className="h-14 w-auto" />
+                        </button>
                     </div>
                     <div className="flex items-center gap-2">
                         {children}

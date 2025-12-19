@@ -15,7 +15,7 @@ interface MarketDistributorsSectionProps {
 const MarketDistributorsSection: React.FC<MarketDistributorsSectionProps> = ({
     marketDistributorsForBase, distributorColors, selectedBase, handleSelectMarketDistributor, selectedDistributorName
 }) => (
-    <>
+    <div className="font-sans">
         <div className="flex flex-col mb-4 border-b border-slate-800 pb-3">
             <h2 className="text-xl font-bold text-slate-100 leading-tight">
                 <Tip text={TOOLTIP.HEADER_MARKET_QUOTES}>
@@ -23,7 +23,7 @@ const MarketDistributorsSection: React.FC<MarketDistributorsSectionProps> = ({
                 </Tip>
             </h2>
             <div className="flex flex-wrap items-center justify-between mt-2 gap-4">
-                <p className="text-slate-400 text-sm">
+                <p className="text-slate-300 font-medium text-sm px-1">
                     Selecione para cotar e ajudar a construir o benchmark de mercado.
                 </p>
             </div>
@@ -50,6 +50,6 @@ const MarketDistributorsSection: React.FC<MarketDistributorsSectionProps> = ({
                 </button>
             )})}
         </div>
-    </>
+    </div>
 );
 export default MarketDistributorsSection;

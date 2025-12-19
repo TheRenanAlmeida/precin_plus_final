@@ -20,40 +20,24 @@ import { fetchDistributorsAndStyles } from '../services/distributors.service';
 import { fetchMarketDataForDate } from '../services/market.service';
 import { fetchUserDailyPricesForDate, saveUserDailyPrices } from '../services/prices.service';
 import { fetchChartDataForDashboard } from '../services/charts.service';
+import { getMarketDayStatus, MarketDayStatus } from '../services/marketDay.service';
 import {
     calculateIQRAverage,
     findMinPriceInfo,
     calculateProductAveragesFromRecords,
 } from '../utils/dataHelpers';
 import { getDistributorStyle, defaultDistributorStyle, getOriginalBrandName } from '../utils/styleManager';
+import { formatDateForInput } from '../utils/dateUtils';
 
-/**
- * Extrai uma mensagem de erro legível de qualquer tipo de exceção.
- * @param error O erro capturado.
- * @returns Uma string com a mensagem de erro.
- */
 const getErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) {
-        return error.message;
-    }
-    if (error && typeof error === 'object' && 'message' in error) {
-        return String((error as { message: unknown }).message);
-    }
-    if (typeof error === 'string') {
-        return error;
-    }
-    try {
-        return JSON.stringify(error);
-    } catch {
-        return 'Ocorreu um erro desconhecido e não foi possível exibi-lo.';
-    }
+    if (error instanceof Error) return error.message;
+    return String(error);
 };
 
-// Local types from DashboardPage
 type ChartDataset = {
     label: string;
     data: (number | null)[];
-    hidden?: boolean; // Adicionado para controle de visibilidade
+    hidden?: boolean;
     [key: string]: any;
 };
 type ChartData = {
@@ -68,7 +52,6 @@ export const useDashboardData = (
     availableBases: string[],
     selectedBase: string,
 ) => {
-    // State declarations
     const [allBrandPrices, setAllBrandPrices] = useState<{ [key in BrandName]?: { [product: string]: number } }>({});
     const [allBrandPriceInputs, setAllBrandPriceInputs] = useState<{ [key in BrandName]?: { [product: string]: string } }>({});
     const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('min');
@@ -76,12 +59,12 @@ export const useDashboardData = (
     const [marketData, setMarketData] = useState<ProductData[]>([]);
     const [unfilteredAveragePrices, setUnfilteredAveragePrices] = useState<{ [product: string]: number }>({});
     const [distributors, setDistributors] = useState<string[]>([]);
-    // FIX: A lista de produtos agora é estática e memoizada para evitar re-renders desnecessários no gráfico
     const products = useMemo(() => [...FUEL_PRODUCTS], []);
     
     const [distributorColors, setDistributorColors] = useState<DistributorColors>({ DEFAULT: defaultDistributorStyle });
     const [distributorImages, setDistributorImages] = useState<{ [key: string]: string | null }>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [isValidatingDay, setIsValidatingDay] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedDistributors, setSelectedDistributors] = useState<Set<string>>(new Set());
     const [rawChartData, setRawChartData] = useState<FuelPriceRecord[]>([]);
@@ -92,8 +75,16 @@ export const useDashboardData = (
     const [isSaveSuccess, setIsSaveSuccess] = useState(false);
     
     const [dashboardSeriesConfig, setDashboardSeriesConfig] = useState<ChartSeries[]>([]);
-
     const [refDate, setRefDate] = useState(new Date());
+    const [adjustmentNotification, setAdjustmentNotification] = useState<{ original: string; adjusted: string } | null>(null);
+    
+    // Novo Estado Consolidado do Dia
+    const [marketDay, setMarketDay] = useState<MarketDayStatus>({
+        sources: 0,
+        valid: true,
+        lastValidDay: null
+    });
+    const [noValidDayFound, setNoValidDayFound] = useState(false);
     
     const userBandeiras = useMemo(() => {
         if (!userProfile.preferencias || !selectedBase) return [];
@@ -113,12 +104,63 @@ export const useDashboardData = (
         }
     }, [userBandeiras, activeBrand]);
 
-    // Data Fetching
+    // Lógica de Validação de Dia de Mercado usando a RPC única com DEBOUNCE
+    useEffect(() => {
+        if (!selectedBase) return;
+        
+        const controller = new AbortController();
+        const validateDay = async () => {
+            setIsValidatingDay(true);
+            setNoValidDayFound(false);
+            const dateStr = formatDateForInput(refDate);
+            
+            const result = await getMarketDayStatus(selectedBase, dateStr, 3, controller.signal);
+            
+            if (result && !controller.signal.aborted) {
+                setMarketDay(result);
+                
+                if (!result.valid) {
+                    if (result.lastValidDay) {
+                        const adjustedDate = new Date(result.lastValidDay + 'T12:00:00');
+                        setAdjustmentNotification({
+                            original: refDate.toLocaleDateString('pt-BR'),
+                            adjusted: adjustedDate.toLocaleDateString('pt-BR')
+                        });
+                        setRefDate(adjustedDate);
+                        setTimeout(() => setAdjustmentNotification(null), 5000);
+                    } else {
+                        setNoValidDayFound(true);
+                    }
+                }
+            }
+            
+            if (!controller.signal.aborted) {
+                setIsValidatingDay(false);
+            }
+        };
+
+        const timer = setTimeout(validateDay, 250); // Debounce de 250ms
+        
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [selectedBase, refDate]);
+
+    // Data Fetching Principal - Respeita a validade do dia
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
         async function fetchPageData() {
+            // Só executa as queries pesadas se o dia for válido
+            if (noValidDayFound || !marketDay.valid) {
+                setMarketData([]);
+                setDistributors([]);
+                setIsLoading(false);
+                return;
+            }
+
             setIsLoading(true);
             setError(null);
             
@@ -135,12 +177,10 @@ export const useDashboardData = (
                 const { prices: loadedPrices, inputs: loadedInputs } = userPricesResult;
                 const { distributorsData, stylesData, distributorsError, stylesError } = distributorsResult;
 
-                if (stylesError) console.error("Falha ao carregar estilos do banco de dados:", stylesError.message);
+                if (stylesError) console.error("Falha ao carregar estilos:", stylesError.message);
                 if (distributorsError) setError(`Falha ao carregar logos: ${distributorsError.message}`);
                 
-                if (pricesError) {
-                    throw pricesError;
-                }
+                if (pricesError) throw pricesError;
 
                 if (distributorsData) {
                     const imageMap = distributorsData.reduce((acc, dist) => {
@@ -170,23 +210,19 @@ export const useDashboardData = (
                 });
 
                 const customSort = (a: string, b: string) => {
-                    const fuelProducts: readonly string[] = FUEL_PRODUCTS;
-                    const indexA = fuelProducts.indexOf(a);
-                    const indexB = fuelProducts.indexOf(b);
-                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                    if (indexA !== -1) return -1; if (indexB !== -1) return 1;
+                    const idxA = products.indexOf(a as any);
+                    const idxB = products.indexOf(b as any);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                     return a.localeCompare(b);
                 };
                 
                 const newDistributors = Array.from(distributorSet).sort((a,b) => a.localeCompare(b));
                 const sortedMarketData = Array.from(productMap.entries()).map(([produto, prices]) => ({ produto, prices })).sort((a, b) => customSort(a.produto, b.produto));
 
-                const allNamesToColor = Array.from(new Set([...newDistributors, ...userBandeiras]));
                 const dbStylesMap = new Map<string, DistributorDBStyle>();
-                if (stylesData) {
-                    stylesData.forEach(style => dbStylesMap.set(style.name, style));
-                }
+                if (stylesData) stylesData.forEach(style => dbStylesMap.set(style.name, style));
                 
+                const allNamesToColor = Array.from(new Set([...newDistributors, ...userBandeiras]));
                 const fetchedColors = allNamesToColor.reduce<DistributorColors>((acc, name) => {
                     acc[name] = getDistributorStyle(name, dbStylesMap);
                     return acc;
@@ -198,42 +234,29 @@ export const useDashboardData = (
                 setSelectedDistributors(new Set(newDistributors));
             
             } catch (err: any) {
-                // Verificação robusta para AbortError
-                if (
-                    (err instanceof Error && (err.name === 'AbortError' || err.message.includes('Aborted') || err.message.includes('aborted'))) || 
-                    (err && typeof err === 'object' && err.message && (err.message.includes('AbortError') || err.message.includes('aborted')))
-                ) {
-                    return; // Ignore abort errors, they are expected
-                }
-                if (!signal.aborted) {
-                    const message = getErrorMessage(err);
-                    setError(`Falha ao carregar os dados: ${message}`);
-                }
+                if (err.name === 'AbortError' || err.message?.includes('aborted')) return;
+                if (!signal.aborted) setError(`Falha ao carregar os dados: ${getErrorMessage(err)}`);
             } finally {
-                if (!signal.aborted) {
-                    setIsLoading(false);
-                }
+                if (!signal.aborted) setIsLoading(false);
             }
         }
 
         if (selectedBase) {
             fetchPageData();
         } else if (availableBases.length === 0 && !userProfile.credencial) {
-            setError("Nenhuma base de atuação configurada. Por favor, ajuste suas preferências.");
+            setError("Nenhuma base de atuação configurada.");
             setIsLoading(false);
         }
 
-        return () => {
-            controller.abort();
-        };
-    }, [refDate, selectedBase, userBandeiras, userProfile.id, userProfile.credencial, availableBases]);
+        return () => controller.abort();
+    }, [refDate, selectedBase, userBandeiras, userProfile.id, availableBases, noValidDayFound, marketDay.valid]);
 
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
         async function fetchChartData() {
-            if (!selectedBase) {
+            if (!selectedBase || !marketDay.valid) {
                 setRawChartData([]);
                 return;
             }
@@ -243,22 +266,16 @@ export const useDashboardData = (
             );
             
             if (signal.aborted) return;
+            if (chartError) setError(prev => `${prev || ''} ${chartError}`);
             
-            if (chartError) {
-                setError(prev => `${prev || ''} ${chartError}`);
-            }
             setRawChartData(rawChartData || []);
             setUserHistoryChartData(userHistoryChartData || []);
         }
 
         fetchChartData();
+        return () => controller.abort();
+    }, [refDate, selectedBase, selectedDistributors, userProfile.id, marketDay.valid]);
 
-        return () => {
-            controller.abort();
-        };
-    }, [refDate, selectedBase, selectedDistributors, userProfile.id]);
-
-    // Derived State
     const marketMinPrices = useMemo(() => {
         return marketData.reduce((acc, { produto, prices }) => {
             const filteredPrices: ProductPrices = {};
@@ -270,34 +287,20 @@ export const useDashboardData = (
         }, {} as { [product: string]: MinPriceInfo });
     }, [marketData, selectedDistributors]);
     
-    // CORREÇÃO: Alinhando a lógica da Tabela com a lógica do Gráfico
     const dynamicAveragePrices = useMemo(() => {
         return marketData.reduce((acc, { produto, prices }) => {
             const distList = Array.from(selectedDistributors) as string[];
             let pricesToAverage: number[] = [];
 
-            // Se apenas 1 distribuidora está selecionada:
-            // O gráfico mostra a variação interna (todos os preços). A tabela deve fazer o mesmo.
             if (distList.length === 1) {
-                const d = distList[0];
-                const pList = prices[d];
-                if (pList) {
-                    const validPrices = pList.filter(p => typeof p === 'number' && isFinite(p));
-                    pricesToAverage = validPrices;
-                }
-            } 
-            // Se múltiplas distribuidoras estão selecionadas:
-            // O gráfico compara a competitividade (Melhor preço vs Melhor preço).
-            // A tabela deve calcular a média dos PREÇOS MÍNIMOS de cada distribuidora.
-            else {
+                const pList = prices[distList[0]];
+                if (pList) pricesToAverage = pList.filter(p => typeof p === 'number' && isFinite(p));
+            } else {
                 for (const d of distList) {
                     const pList = prices[d];
                     if (pList && pList.length > 0) {
                         const validPrices = pList.filter(p => typeof p === 'number' && isFinite(p));
-                        if (validPrices.length > 0) {
-                            // Pega o MELHOR preço desta distribuidora para compor a média de mercado
-                            pricesToAverage.push(Math.min(...validPrices));
-                        }
+                        if (validPrices.length > 0) pricesToAverage.push(Math.min(...validPrices));
                     }
                 }
             }
@@ -312,7 +315,7 @@ export const useDashboardData = (
 
         rawChartData.forEach((record: FuelPriceRecord) => {
             const { fuel_type, data, Distribuidora, price } = record;
-            if (price && price > 0 && typeof fuel_type === 'string' && typeof data === 'string' && typeof Distribuidora === 'string') {
+            if (price && price > 0 && fuel_type && data && Distribuidora) {
                 if (!dataByFuelTypeAndDate[fuel_type]) dataByFuelTypeAndDate[fuel_type] = {};
                 const fuelData = dataByFuelTypeAndDate[fuel_type];
                 if (!fuelData[data]) fuelData[data] = {};
@@ -325,12 +328,11 @@ export const useDashboardData = (
         const userPricesByFuelAndDate: UserPricesByFuelAndDate = {};
         userHistoryChartData.forEach((record: UserHistoryChartRecord) => {
             const { product_name, price_date, brand_name, price } = record;
-            if (typeof product_name === 'string' && typeof price_date === 'string' && typeof brand_name === 'string') {
+            if (product_name && price_date && brand_name) {
                 if (!userPricesByFuelAndDate[product_name]) userPricesByFuelAndDate[product_name] = {};
                 const productData = userPricesByFuelAndDate[product_name];
                 if (!productData[price_date]) productData[price_date] = {};
-                const dateData = productData[price_date];
-                dateData[brand_name] = price;
+                productData[price_date][brand_name] = price;
             }
         });
 
@@ -340,9 +342,7 @@ export const useDashboardData = (
         if (allFuelTypesInWindow.length === 0) return { chartData: {} as FinalChartData, seriesConfig: [] };
 
         const labels: string[] = Array.from(new Set<string>(
-            rawChartData
-                .map((d) => d.data)
-                .filter((d): d is string => typeof d === 'string')
+            rawChartData.map((d) => d.data).filter((d): d is string => !!d)
         )).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
         if (labels.length === 0) return { chartData: {} as FinalChartData, seriesConfig: [] };
@@ -350,33 +350,25 @@ export const useDashboardData = (
         for (const fuelType of allFuelTypesInWindow) {
             const dailyStats = labels.map(dateStr => {
                 const pricesByDistributor = dataByFuelTypeAndDate[fuelType]?.[dateStr] || {};
-                const activeDistributors = Object.keys(pricesByDistributor).filter(d => pricesByDistributor[d] && pricesByDistributor[d].length > 0);
+                const activeDistributors = Object.keys(pricesByDistributor).filter(d => pricesByDistributor[d]?.length > 0);
 
                 if (activeDistributors.length === 0) return { min: null, avg: null, max: null };
 
                 let valuesForStats: number[] = [];
-
                 if (activeDistributors.length === 1) {
-                    // Cenário 1: Apenas 1 bandeira selecionada.
-                    // Mostra a variação INTERNA (amplitude) daquela bandeira.
                     valuesForStats = pricesByDistributor[activeDistributors[0]];
                 } else {
-                    // Cenário 2: Múltiplas bandeiras.
-                    // Competitividade: Pega o MELHOR preço (Mínimo) de cada concorrente.
-                    // Isso gera uma faixa de mercado dos "Melhores Preços".
                     valuesForStats = activeDistributors.map(d => Math.min(...pricesByDistributor[d]));
                 }
 
-                // Garante que são números válidos
                 const validValues = valuesForStats.filter((p): p is number => typeof p === 'number' && isFinite(p));
-
                 if (validValues.length === 0) return { min: null, avg: null, max: null };
                 
-                const min = Math.min(...validValues);
-                const avg = calculateIQRAverage(validValues);
-                const max = Math.max(...validValues);
-
-                return { min, avg: avg > 0 ? avg : null, max };
+                return { 
+                    min: Math.min(...validValues), 
+                    avg: calculateIQRAverage(validValues) || null, 
+                    max: Math.max(...validValues) 
+                };
             });
 
             const datasets: ChartDataset[] = [
@@ -413,8 +405,8 @@ export const useDashboardData = (
             ];
 
             userBandeiras.forEach(brand => {
-                const brandColorStyle = distributorColors[brand] || distributorColors.DEFAULT;
-                const borderColor = brandColorStyle.background.replace(/, ?\d?\.?\d+\)$/, ', 1)');
+                const style = distributorColors[brand] || distributorColors.DEFAULT;
+                const borderColor = style.background.replace(/, ?\d?\.?\d+\)$/, ', 1)');
                 datasets.push({
                     label: brand,
                     data: labels.map(date => userPricesByFuelAndDate[fuelType]?.[date]?.[brand] ?? null),
@@ -431,19 +423,9 @@ export const useDashboardData = (
             finalChartData[fuelType] = { labels, datasets };
         }
         
-        const productOrder = FUEL_PRODUCTS as readonly string[];
-        const sortedKeys = Object.keys(finalChartData).sort((a, b) => {
-            const indexA = productOrder.indexOf(a);
-            const indexB = productOrder.indexOf(b);
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1; if (indexB !== -1) return 1;
-            return a.localeCompare(b);
-        });
-        
         const sortedFinalChartData: FinalChartData = {};
-        sortedKeys.forEach((key) => {
-            sortedFinalChartData[key] = finalChartData[key];
-        });
+        Object.keys(finalChartData).sort((a,b) => products.indexOf(a as any) - products.indexOf(b as any))
+            .forEach(key => sortedFinalChartData[key] = finalChartData[key]);
 
         const newSeriesConfig: ChartSeries[] = [
             { key: 'Preço Mínimo', name: 'Preço Mínimo', color: 'rgb(34, 197, 94)', type: 'market', isVisible: true },
@@ -452,66 +434,27 @@ export const useDashboardData = (
         ];
         
         userBandeiras.forEach(brand => {
-            const brandColorStyle = distributorColors[brand] || distributorColors.DEFAULT;
+            const style = distributorColors[brand] || distributorColors.DEFAULT;
             newSeriesConfig.push({
                 key: brand,
                 name: brand,
-                color: brandColorStyle.background.replace(/, ?\d?\.?\d+\)$/, ', 1)'),
+                color: style.background.replace(/, ?\d?\.?\d+\)$/, ', 1)'),
                 type: 'distributor',
                 isVisible: true,
             });
         });
 
         return { chartData: sortedFinalChartData, seriesConfig: newSeriesConfig };
-    }, [rawChartData, userHistoryChartData, userBandeiras, distributorColors]);
+    }, [rawChartData, userHistoryChartData, userBandeiras, distributorColors, products]);
 
-    // --- Atualiza configuração de séries (Gráfico) com persistência ---
     useEffect(() => {
         setDashboardSeriesConfig(prevConfig => {
-            const newConfig = chartAndSeriesData.seriesConfig as ChartSeries[];
-            if (!newConfig || newConfig.length === 0) {
-                return prevConfig.filter(s => s.type === 'market');
-            }
-            
-            const prevVisibilityMap = new Map(prevConfig.map(s => [s.key, s.isVisible]));
-            
-            // Carregar do localStorage
-            let savedVisibility: Record<string, boolean> = {};
-            try {
-                const raw = localStorage.getItem('precin_dashboard_series_visibility');
-                if (raw) savedVisibility = JSON.parse(raw);
-            } catch (e) {
-                console.warn("Erro ao ler visibilidade do localStorage:", e);
-            }
-
-            return newConfig.map((newSeries: ChartSeries) => {
-                const fromSaved = savedVisibility[newSeries.key];
-                const fromPrev = prevVisibilityMap.get(newSeries.key);
-                
-                let isVisible = newSeries.isVisible;
-                // Preferência salva tem prioridade maior, depois estado anterior
-                if (typeof fromSaved === 'boolean') {
-                    isVisible = fromSaved;
-                } else if (typeof fromPrev === 'boolean') {
-                    isVisible = fromPrev;
-                }
-
-                return { ...newSeries, isVisible };
-            });
+            const newConfig = chartAndSeriesData.seriesConfig;
+            if (!newConfig || newConfig.length === 0) return prevConfig;
+            const prevMap = new Map(prevConfig.map(s => [s.key, s.isVisible]));
+            return newConfig.map(s => ({ ...s, isVisible: prevMap.has(s.key) ? prevMap.get(s.key)! : s.isVisible }));
         });
     }, [chartAndSeriesData.seriesConfig]);
-
-    // --- Salvar visibilidade das séries no localStorage ---
-    useEffect(() => {
-        if (dashboardSeriesConfig.length === 0) return;
-        const visibility: Record<string, boolean> = {};
-        dashboardSeriesConfig.forEach(s => visibility[s.key] = s.isVisible);
-        try {
-            localStorage.setItem('precin_dashboard_series_visibility', JSON.stringify(visibility));
-        } catch (e) {
-            console.warn("Erro ao salvar visibilidade no localStorage:", e);
-        }
-    }, [dashboardSeriesConfig]);
 
     const visibleSeriesNames = useMemo(() => new Set(
         dashboardSeriesConfig.filter(s => s.isVisible).map(s => s.name)
@@ -519,57 +462,17 @@ export const useDashboardData = (
 
     const filteredChartData = useMemo(() => {
         const newChartData: Record<string, ChartData> = {};
-        const cd = chartAndSeriesData.chartData as Record<string, ChartData>;
-        
-        if (cd && typeof cd === 'object') {
-            Object.keys(cd).forEach((key: string) => {
-                const originalData = cd[key];
-                if (originalData && originalData.datasets) {
-                    newChartData[key] = {
-                        ...originalData,
-                        // MODIFICADO: Em vez de filtrar (remover), apenas marcamos como hidden.
-                        // Isso permite que o Chart.js mantenha a referência, mas a lógica de min/max
-                        // no componente charts.tsx irá ignorar os dados hidden para re-escalar.
-                        datasets: originalData.datasets.map((dataset: ChartDataset) => ({
-                            ...dataset,
-                            hidden: !visibleSeriesNames.has(dataset.label)
-                        }))
-                    };
-                }
-            });
-        }
+        const cd = chartAndSeriesData.chartData;
+        Object.keys(cd).forEach(key => {
+            newChartData[key] = {
+                ...cd[key],
+                datasets: cd[key].datasets.map(ds => ({ ...ds, hidden: !visibleSeriesNames.has(ds.label) }))
+            };
+        });
         return newChartData;
     }, [chartAndSeriesData.chartData, visibleSeriesNames]);
 
-    const filteredAllBrandPrices = useMemo(() => {
-        const allowedBrands = new Set(userBandeiras);
-        const result: { [key in BrandName]?: { [product: string]: number } } = {};
-        Object.keys(allBrandPrices).forEach((key) => {
-            const brand = key as BrandName;
-            const prices = allBrandPrices[brand];
-            if (allowedBrands.has(brand) && prices) {
-                result[brand] = prices;
-            }
-        });
-        return result;
-    }, [allBrandPrices, userBandeiras]);
-
-    const filteredAllBrandPriceInputs = useMemo(() => {
-        const allowedBrands = new Set(userBandeiras);
-        const result: { [key in BrandName]?: { [product: string]: string } } = {};
-        Object.keys(allBrandPriceInputs).forEach((key) => {
-             const brand = key as BrandName;
-             const inputs = allBrandPriceInputs[brand];
-             if (allowedBrands.has(brand) && inputs) {
-                 result[brand] = inputs;
-             }
-        });
-        return result;
-    }, [allBrandPriceInputs, userBandeiras]);
-
-    // Handlers
     const handleBrandPriceChange = useCallback((brand: BrandName, product: string, value: string) => {
-        // ALTERADO: Limita a 4 dígitos no total (X,XXX) para 3 casas decimais
         let digits = value.replace(/\D/g, '').slice(0, 4);
         if (digits === '') {
           setAllBrandPriceInputs(p => ({ ...p, [brand]: { ...p[brand], [product]: '' } }));
@@ -577,75 +480,35 @@ export const useDashboardData = (
           return;
         }
         const formattedValue = digits.length > 1 ? `${digits.slice(0, 1)},${digits.slice(1)}` : digits;
-        // ALTERADO: Divisão por 1000 para 3 casas decimais
         const price = parseInt(digits.padEnd(4, '0'), 10) / 1000;
-        
         setAllBrandPriceInputs(p => ({ ...p, [brand]: { ...p[brand], [product]: formattedValue } }));
         setAllBrandPrices(p => ({ ...p, [brand]: { ...p[brand], [product]: price } }));
     }, []);
 
     const handleSaveQuote = useCallback(async () => {
-        if (!userProfile) {
-          setError('Dados do usuário incompletos. Não é possível salvar a cotação.');
-          return;
-        }
         setIsSaving(true);
         setIsSaveSuccess(false);
         setError(null);
-    
-        const { error: upsertError } = await saveUserDailyPrices(filteredAllBrandPrices, userProfile, refDate, selectedBase);
-        
+        const { error: upsertError } = await saveUserDailyPrices(allBrandPrices, userProfile, refDate, selectedBase);
         setIsSaving(false);
-    
-        if (upsertError) {
-          console.error("Erro detalhado do Supabase:", upsertError);
-          const errorMessage = upsertError.message || "Erro desconhecido. Verifique o console para mais detalhes.";
-          setError(`Não foi possível salvar a cotação: ${errorMessage}`);
-        } else {
+        if (upsertError) setError(`Falha ao salvar: ${upsertError.message}`);
+        else {
           setIsSaveSuccess(true);
           setTimeout(() => setIsSaveSuccess(false), 2500);
         }
-    }, [filteredAllBrandPrices, userProfile, refDate, selectedBase]);
+    }, [allBrandPrices, userProfile, refDate, selectedBase]);
     
-    const toggleDashboardSeriesVisibility = useCallback((seriesKey: string) => {
-        setDashboardSeriesConfig(prevConfig =>
-            prevConfig.map(series =>
-                series.key === seriesKey ? { ...series, isVisible: !series.isVisible } : series
-            )
-        );
-    }, []);
-    
-    const handleSelectAllDistributors = useCallback(() => {
-        setSelectedDistributors(new Set(distributors));
-    }, [distributors]);
-
-    const handleClearAllDistributors = useCallback(() => {
-        setSelectedDistributors(new Set());
-    }, []);
-
-    const handleToggleDistributor = useCallback((distName: string) => {
-        setSelectedDistributors(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(distName)) {
-                newSet.delete(distName);
-            } else {
-                newSet.add(distName);
-            }
-            return newSet;
-        });
-    }, []);
-
-
     return {
         isLoading,
+        isValidatingDay,
         error,
         marketData,
         products,
         distributors,
         distributorColors,
         distributorImages,
-        allBrandPrices: filteredAllBrandPrices,
-        allBrandPriceInputs: filteredAllBrandPriceInputs,
+        allBrandPrices,
+        allBrandPriceInputs,
         marketMinPrices,
         dynamicAveragePrices,
         selectedDistributors,
@@ -658,20 +521,23 @@ export const useDashboardData = (
         activeBrand,
         comparisonMode,
         filteredChartData,
-        
-        // Raw data for advanced components (like PurchaseThermometer)
         rawChartData,
-
-        // Handlers and Setters
+        adjustmentNotification,
+        marketDay, // Retornando marketDay consolidado
+        noValidDayFound,
         handleBrandPriceChange,
         handleSaveQuote,
         setRefDate,
         setActiveBrand,
         setComparisonMode,
         setIsComparisonMode,
-        toggleDashboardSeriesVisibility,
-        handleSelectAllDistributors,
-        handleClearAllDistributors,
-        handleToggleDistributor,
+        toggleDashboardSeriesVisibility: (key: string) => setDashboardSeriesConfig(prev => prev.map(s => s.key === key ? { ...s, isVisible: !s.isVisible } : s)),
+        handleSelectAllDistributors: () => setSelectedDistributors(new Set(distributors)),
+        handleClearAllDistributors: () => setSelectedDistributors(new Set()),
+        handleToggleDistributor: (dist: string) => setSelectedDistributors(prev => {
+            const next = new Set(prev);
+            if (next.has(dist)) next.delete(dist); else next.add(dist);
+            return next;
+        }),
     };
 };

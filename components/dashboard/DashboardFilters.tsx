@@ -2,6 +2,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { DistributorColors } from '../../types';
 import { getOriginalBrandName } from '../../utils/styleManager';
+import FilterButton from '../common/FilterButton';
 
 interface DashboardFiltersProps {
     availableBases: string[];
@@ -91,19 +92,23 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                 </div>
 
                 {/* Benchmark Toggle */}
-                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
-                    <button
+                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1">
+                    <FilterButton 
+                        label="Mínima"
+                        active={comparisonMode === 'min'}
                         onClick={() => setComparisonMode('min')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${comparisonMode === 'min' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        Mínima
-                    </button>
-                    <button
+                        size="sm"
+                        tooltip="Comparar com o menor preço do mercado na data."
+                        className="rounded-md border-transparent bg-transparent shadow-none"
+                    />
+                    <FilterButton 
+                        label="Média"
+                        active={comparisonMode === 'avg'}
                         onClick={() => setComparisonMode('avg')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${comparisonMode === 'avg' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        Média
-                    </button>
+                        size="sm"
+                        tooltip="Comparar com a média competitiva (IQR) do mercado."
+                        className="rounded-md border-transparent bg-transparent shadow-none"
+                    />
                 </div>
 
                 {/* Date Picker */}
@@ -121,22 +126,20 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
 
                 {/* Distributor Filter (Dropdown) */}
                 <div className="relative" ref={distributorFilterRef}>
-                    <button
+                    <FilterButton 
                         onClick={() => setIsDistributorFilterOpen(!isDistributorFilterOpen)}
-                        className={`
-                            flex items-center gap-2 rounded-lg px-3 py-1.5 border text-xs font-bold uppercase transition-colors
-                            ${isDistributorFilterOpen 
-                                ? 'bg-slate-700 border-slate-600 text-white' 
-                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                            }
-                        `}
-                    >
-                        <span>Distribuidoras</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums font-sans ${selectedDistributors.size > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
-                            {selectedDistributors.size}/{distributors.length}
-                        </span>
-                        <svg className={`w-3 h-3 transition-transform ${isDistributorFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                    </button>
+                        active={isDistributorFilterOpen}
+                        tooltip="Selecionar quais distribuidoras compõem os cálculos de mercado."
+                        label={
+                            <>
+                                <span>Distribuidoras</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums font-sans ${selectedDistributors.size > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
+                                    {selectedDistributors.size}/{distributors.length}
+                                </span>
+                                <svg className={`w-3 h-3 transition-transform ${isDistributorFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                            </>
+                        }
+                    />
 
                     {isDistributorFilterOpen && (
                         <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 flex flex-col max-h-[400px]">
@@ -172,7 +175,7 @@ const DashboardFilters: React.FC<DashboardFiltersProps> = ({
                                             <div 
                                                 className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600 bg-transparent'}`}
                                             >
-                                                {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
+                                                {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
                                             </div>
                                             
                                             <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">

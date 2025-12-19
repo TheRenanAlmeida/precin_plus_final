@@ -10,7 +10,7 @@ interface NavigationSidebarProps {
 }
 
 const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ goToDashboard, goToHistory, goToAdmin, goToContracts, isAdmin }) => (
-    <aside className="lg:col-span-3 space-y-8">
+    <aside className="lg:col-span-3 space-y-8 font-sans">
         <div className="p-5 bg-slate-900 rounded-2xl shadow-xl border border-slate-800 space-y-4 sticky top-24">
             <h2 className="text-xl font-bold text-slate-100 uppercase tracking-wide border-b border-slate-800 pb-3">Acesso Rápido</h2>
             
@@ -29,7 +29,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ goToDashboard, go
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                     </svg>
-                    CONFIGURAR CONTRATO
+                    CONTRATOS
                 </button>
             )}
 

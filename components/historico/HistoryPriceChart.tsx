@@ -24,7 +24,6 @@ const generateEChartsOptions = (
   seriesConfig: HistoryPriceChartProps['seriesConfig'],
   defaultZoom: { startValue?: number; endValue?: number }
 ) => {
-  // ... (código existente da função generateEChartsOptions permanece inalterado) ...
   const visibleSeriesConfig = seriesConfig.filter(s => s.isVisible);
   const allLabels = chartData.labels;
   const timestamps = allLabels.map(l => new Date(l + 'T00:00:00Z').getTime());
@@ -289,7 +288,7 @@ const generateEChartsOptions = (
       confine: true,
       enterable: true,
       transitionDuration: 0.1,
-      backgroundColor: '#0f172a', 
+      backgroundColor: 'rgba(15, 23, 42, 0.6)', 
       borderColor: '#1e293b', 
       borderWidth: 1,
       borderRadius: 8,
@@ -297,7 +296,7 @@ const generateEChartsOptions = (
       textStyle: {
         color: '#f1f5f9', 
       },
-      extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);',
+      extraCssText: 'box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);',
       formatter: (params: any[]) => {
         if (typeof echarts === 'undefined' || !params || params.length === 0) return '';
         const date = echarts.time.format(params[0].value[0], '{dd}/{MM}/{yyyy}', true);

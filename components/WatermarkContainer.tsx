@@ -6,7 +6,6 @@ import { UserProfile } from '../types';
 interface WatermarkContainerProps {
   children?: React.ReactNode;
   userProfile?: UserProfile | null;
-  base?: string;
   enabled?: boolean;
   className?: string;
   opacity?: number;
@@ -15,7 +14,6 @@ interface WatermarkContainerProps {
 const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
   children,
   userProfile,
-  base,
   enabled = true,
   className = '',
   opacity,
@@ -23,15 +21,13 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
   const backgroundImage = useMemo(() => {
     if (!enabled || !userProfile) return 'none';
 
-    const { line1, line2 } = buildUserWatermark(userProfile, base);
+    const { line1, line2, line3 } = buildUserWatermark(userProfile);
 
-    // Configuração Única (Estilo denso para tabelas/seções)
-    // Reduzido para 0.06 conforme solicitado para maior sutileza
     const config = { 
         op: 0.06, 
-        size: 200, 
-        fontSize: 11,
-        textColor: '#cbd5e1' // slate-300
+        size: 240, 
+        fontSize: 12, 
+        textColor: '#cbd5e1' 
     };
 
     const finalOpacity = opacity !== undefined ? opacity : config.op;
@@ -40,7 +36,7 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
     const width = config.size;
     const height = config.size;
     const centerX = width / 2;
-    const centerY = height / 2;
+    const centerY = 80; 
 
     const svgString = `
       <svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'>
@@ -48,12 +44,13 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
           .wm-text { 
             fill: ${config.textColor}; 
             font-size: ${config.fontSize}px; 
-            font-weight: 700; 
+            font-weight: 800; 
             font-family: ui-sans-serif, system-ui, sans-serif; 
             opacity: ${finalOpacity};
-            pointer-events: none;
-            user-select: none;
             text-transform: uppercase;
+          }
+          .wm-mono {
+            font-family: ui-monospace, SFMono-Regular, monospace;
           }
         </style>
         <text 
@@ -64,9 +61,9 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
           transform='rotate(${rotation} ${centerX} ${centerY})' 
           class='wm-text'
         >
-          <tspan x='${centerX}' dy='-1.0em'>PRECIN PLUS • CONFIDENCIAL</tspan>
-          <tspan x='${centerX}' dy='1.4em'>${line1}</tspan>
-          <tspan x='${centerX}' dy='1.4em' style="font-size: 0.85em; font-family: monospace;">${line2}</tspan>
+          <tspan x='${centerX}' dy='-1.2em'>${line1}</tspan>
+          <tspan x='${centerX}' dy='1.4em'>${line2}</tspan>
+          <tspan x='${centerX}' dy='1.4em' class='wm-mono' style="font-size: 0.85em;">${line3}</tspan>
         </text>
       </svg>
     `.trim().replace(/\s+/g, ' ');
@@ -76,7 +73,7 @@ const WatermarkContainer: React.FC<WatermarkContainerProps> = ({
       : ''; 
       
     return `url("data:image/svg+xml;base64,${encodedSVG}")`;
-  }, [userProfile, base, enabled, opacity]);
+  }, [userProfile, enabled, opacity]);
 
   return (
     <div 

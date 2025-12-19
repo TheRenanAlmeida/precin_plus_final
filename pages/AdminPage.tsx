@@ -6,6 +6,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import ErrorScreen from '../components/ErrorScreen';
 import NotificationToast from '../components/menu/NotificationToast';
 import { rgbaToHex, hexToRgba } from '../utils/dataHelpers';
+import { getErrorMessage } from '../utils/errorHelpers';
 
 type AdminUser = {
     id: string;
@@ -171,7 +172,7 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
 
             } catch (err) {
                 if (!signal.aborted) {
-                    setError(`Error fetching admin data: ${(err as Error).message}`);
+                    setError(`Error fetching admin data: ${getErrorMessage(err)}`);
                 }
             } finally {
                 if (!signal.aborted) {
@@ -212,7 +213,7 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
         const { error } = await supabase.from('pplus_distributor_styles').upsert(styleToSave, { onConflict: 'name' });
         
         if (error) {
-            showNotification('error', `Erro ao salvar ${distName}: ${error.message}`);
+            showNotification('error', `Erro ao salvar ${distName}: ${getErrorMessage(error)}`);
         } else {
             showNotification('success', `Estilo de ${distName} salvo com sucesso!`);
         }
@@ -222,7 +223,7 @@ const AdminPage: React.FC<{ userProfile: UserProfile, goBack: () => void }> = ({
     const handleUserUpdate = async (userId: string, updates: Partial<AdminUser>) => {
         const { error } = await supabase.from('pplus_users').update(updates).eq('id', userId);
         if (error) {
-            showNotification('error', `Erro ao atualizar usuário: ${error.message}`);
+            showNotification('error', `Erro ao atualizar usuário: ${getErrorMessage(error)}`);
         } else {
             setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
             showNotification('success', `Usuário atualizado com sucesso!`);

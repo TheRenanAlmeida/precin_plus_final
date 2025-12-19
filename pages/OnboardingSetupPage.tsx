@@ -269,8 +269,8 @@ export default function OnboardingSetupPage({ userProfile, onOnboardingComplete 
                         <div>
                             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide mb-1">Como isso impacta seu dia a dia?</h3>
                             <p className="text-sm text-slate-400 leading-relaxed">
-                                Ao selecionar sua <strong>Distribuidora</strong> e <strong>Base</strong>, o sistema cria um painel comparativo automático. 
-                                Você verá se o seu preço de compra está competitivo em relação à média, mínima e máxima praticadas na sua região específica.
+                                Ao selecionar sua <strong>Distribuidora</strong> e <strong>Base</strong>, o sistema cria uma análise informativa automática. 
+                                Você verá se a sua <strong>cotação informada</strong> está competitiva em relação à média, mínima e máxima praticadas na sua região específica.
                             </p>
                         </div>
                     </div>
